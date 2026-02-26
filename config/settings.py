@@ -65,6 +65,22 @@ HISTORY_PERIOD_INTRADAY = "60d"  # Max for 1h data on yfinance
 HISTORY_PERIOD_DAILY = "1y"      # 1 year daily data for stocks
 BACKTEST_PERIOD = "2y"           # 2 years for backtesting (daily data)
 
-# --- Market Hours (IST = UTC+5:30) ---
-NSE_OPEN_HOUR_UTC = 3    # 9:15 AM IST ≈ 3:45 AM UTC
-NSE_CLOSE_HOUR_UTC = 10  # 3:30 PM IST ≈ 10:00 AM UTC
+# --- Market Hours ---
+# All times in IST (UTC+5:30). Converted to UTC at runtime.
+
+# NSE (Indian Stocks & Indices): Mon-Fri
+NSE_OPEN_HOUR = 9
+NSE_OPEN_MINUTE = 15
+NSE_CLOSE_HOUR = 15
+NSE_CLOSE_MINUTE = 30
+NSE_DAYS = [0, 1, 2, 3, 4]  # Mon-Fri
+
+# Commodity Futures (COMEX/NYMEX/ICE via Money Plant):
+# Global session: Sun 6:00 PM ET - Fri 5:00 PM ET (nearly 24/5)
+# In IST: Mon 3:30 AM - Sat 2:30 AM (with daily break 2:30-3:30 AM IST)
+COMMODITY_OPEN_HOUR = 3
+COMMODITY_OPEN_MINUTE = 30
+COMMODITY_CLOSE_HOUR = 2
+COMMODITY_CLOSE_MINUTE = 30
+# Commodities trade Mon 3:30 AM IST through Sat 2:30 AM IST
+COMMODITY_DAYS = [0, 1, 2, 3, 4, 5]  # Mon-Sat (Sat early morning only)

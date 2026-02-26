@@ -217,6 +217,11 @@ def cmd_check_signals():
         print(f"\n{new} new subscriber(s) registered!")
 
     results = scan_all()
+
+    if not results.get("markets_open", True):
+        print("\nAll markets closed. Nothing to send.")
+        return
+
     signals = results["signals"]
 
     if signals:

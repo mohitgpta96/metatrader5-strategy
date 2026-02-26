@@ -15,6 +15,7 @@ from config.instruments import (
     ALL_COMMODITY_TICKERS, ALL_INDEX_TICKERS, ALL_STOCK_TICKERS,
     COMMODITIES, get_display_name,
 )
+from config.market_hours import is_nse_open, is_commodity_open, market_status_summary
 
 
 def scan_commodities():
@@ -109,11 +110,27 @@ def scan_stocks(tickers=None):
 def scan_all():
     """
     Full market scan: Commodities + Indices + Stocks + Market Intelligence.
+    Only scans markets that are currently OPEN/LIVE.
     Returns all signals, statuses, and intelligence report.
     """
+    commodity_live = is_commodity_open()
+    nse_live = is_nse_open()
+
     print("=" * 60)
     print("MULTI-MARKET FUTURES SCAN")
     print("=" * 60)
+    print(f"\n{market_status_summary()}")
+
+    if not commodity_live and not nse_live:
+        print("\n[!] ALL MARKETS CLOSED. No signals to generate.")
+        return {
+            "signals": [], "statuses": [],
+            "commodity_signals": [], "commodity_statuses": [],
+            "index_statuses": [],
+            "stock_signals": [], "stock_statuses": [],
+            "intelligence": None, "intelligence_report": None,
+            "markets_open": False,
+        }
 
     # Market Intelligence (macro + geo-political + news)
     print("\n--- Generating Market Intelligence ---")
@@ -126,21 +143,28 @@ def scan_all():
         intel = None
         intel_report = None
 
-    # Commodities
-    commodity_signals, commodity_statuses = scan_commodities()
+    commodity_signals = []
+    commodity_statuses = []
+    index_statuses = []
+    stock_signals = []
+    stock_statuses = []
 
-    # Filter signals against macro outlook
-    if intel:
-        commodity_signals = _filter_signals_by_outlook(commodity_signals, intel)
+    # Commodities - only if commodity market is live
+    if commodity_live:
+        commodity_signals, commodity_statuses = scan_commodities()
+        if intel:
+            commodity_signals = _filter_signals_by_outlook(commodity_signals, intel)
+    else:
+        print("\n--- Commodity Market CLOSED - Skipping ---")
 
-    # Indices
-    index_statuses = scan_indices()
-
-    # Stocks
-    stock_signals, stock_statuses = scan_stocks()
-
-    if intel:
-        stock_signals = _filter_signals_by_outlook(stock_signals, intel)
+    # Indices & Stocks - only if NSE is live
+    if nse_live:
+        index_statuses = scan_indices()
+        stock_signals, stock_statuses = scan_stocks()
+        if intel:
+            stock_signals = _filter_signals_by_outlook(stock_signals, intel)
+    else:
+        print("\n--- NSE CLOSED - Skipping Stocks & Indices ---")
 
     all_signals = commodity_signals + stock_signals
     all_statuses = commodity_statuses + index_statuses + stock_statuses
@@ -148,8 +172,10 @@ def scan_all():
     print(f"\n{'=' * 60}")
     print(f"SCAN COMPLETE")
     print(f"  Total Signals: {len(all_signals)}")
-    print(f"  - Commodity Futures: {len(commodity_signals)}")
-    print(f"  - Stock Futures: {len(stock_signals)}")
+    if commodity_live:
+        print(f"  - Commodity Futures: {len(commodity_signals)}")
+    if nse_live:
+        print(f"  - Stock Futures: {len(stock_signals)}")
     if intel:
         print(f"  Risk Level: {intel['risk_level']} ({intel['risk_score']}/100)")
         print(f"  Gold: {intel['gold_outlook']} | Oil: {intel['oil_outlook']} | Stocks: {intel['stock_outlook']}")
@@ -165,6 +191,7 @@ def scan_all():
         "stock_statuses": stock_statuses,
         "intelligence": intel,
         "intelligence_report": intel_report,
+        "markets_open": True,
     }
 
 
