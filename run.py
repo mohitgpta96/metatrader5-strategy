@@ -206,9 +206,10 @@ def cmd_check_signals():
     """
     Full scan + send signals via Telegram.
     Used by GitHub Actions cron job.
+    Includes market intelligence (macro + geo-political analysis).
     """
     from scanner.market_scanner import scan_all
-    from bot.telegram_bot import send_signal_alert, check_new_subscribers
+    from bot.telegram_bot import send_signal_alert, send_message_sync, check_new_subscribers
 
     # Auto-register any new /start users before sending
     new = check_new_subscribers()
@@ -217,6 +218,13 @@ def cmd_check_signals():
 
     results = scan_all()
     signals = results["signals"]
+
+    # Send intelligence report first (if available)
+    intel_report = results.get("intelligence_report")
+    if intel_report:
+        print("\nSending Market Intelligence report to Telegram...")
+        send_message_sync(intel_report)
+        print("  Intelligence report sent!")
 
     if signals:
         print(f"\n{len(signals)} signal(s) found! Sending to Telegram...")

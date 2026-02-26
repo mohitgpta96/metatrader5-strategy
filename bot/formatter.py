@@ -52,6 +52,15 @@ def format_signal(signal):
         "=" * 35,
         f"EMA20 {'>' if signal['direction'] == 'BUY' else '<'} EMA50 | RSI: {signal['rsi']}",
         f"Trend: {signal['trend']} | ATR: {currency}{signal['atr']:,.2f}",
+    ])
+
+    # Add macro context if available
+    if signal.get("macro_outlook"):
+        lines.append(f"Macro: {signal['macro_outlook']} | Risk: {signal.get('macro_risk', 'N/A')}")
+    if signal.get("macro_warning"):
+        lines.append(f"[!] {signal['macro_warning']}")
+
+    lines.extend([
         "=" * 35,
         "Analysis only, NOT financial advice.",
     ])

@@ -11,13 +11,20 @@ from scanner.market_scanner import scan_all
 
 
 def generate_digest():
-    """Generate a complete daily market digest."""
+    """Generate a complete daily market digest with intelligence report."""
     results = scan_all()
 
     today = datetime.now().strftime("%b %d, %Y")
     lines = []
     lines.append(f"DAILY MARKET DIGEST -- {today}")
     lines.append("=" * 40)
+
+    # --- Market Intelligence ---
+    intel_report = results.get("intelligence_report")
+    if intel_report:
+        lines.append("")
+        lines.append(intel_report)
+        lines.append("")
 
     # --- Commodities ---
     lines.append("")
