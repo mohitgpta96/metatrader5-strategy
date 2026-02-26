@@ -96,70 +96,92 @@ COMMODITIES = {
 }
 
 # --- Indian Commodity FUTURES (MCX) ---
-# MCX data not on yfinance. Using ETFs and international proxies.
-# MCX hours: 9:00 AM - 11:30 PM IST (summer) / 11:55 PM (winter)
+# MCX futures data not available on yfinance directly.
+# Using international futures tickers as proxy - MCX prices follow these exactly.
+# MCX hours: Mon-Fri 9:00 AM - 11:30 PM IST (summer) / 11:55 PM (winter)
 MCX_COMMODITIES = {
     "MCX_GOLD": {
         "name": "MCX Gold Futures",
-        "yf_ticker": "GOLDBEES.NS",       # Gold ETF as INR proxy
-        "contract_size": 100,              # Gold Mini: 100g
-        "tick_size": 1,                    # Rs 1 per 10g
-        "pnl_per_tick": 10,               # Rs 10 per tick (Gold Mini)
-        "currency": "INR",
+        "yf_ticker": "GC=F",             # COMEX Gold futures proxy
+        "contract_size": 100,             # Gold Mini: 100g
+        "tick_size": 1,                   # Rs 1 per 10g
+        "pnl_per_tick": 10,              # Rs 10 per tick (Gold Mini)
+        "currency": "USD",
         "market": "MCX",
-        "timeframe": "1d",
-        "min_lot": 1,
+        "timeframe": "1h",
+        "min_lot": 0.01,
         "mcx_unit": "Rs/10g",
     },
     "MCX_SILVER": {
         "name": "MCX Silver Futures",
-        "yf_ticker": "SILVERBEES.NS",     # Silver ETF as INR proxy
-        "contract_size": 5,               # Silver Mini: 5 Kg
+        "yf_ticker": "SI=F",             # COMEX Silver futures proxy
+        "contract_size": 5000,            # Silver Mini: 5 Kg
         "tick_size": 1,                   # Rs 1 per Kg
-        "pnl_per_tick": 5,               # Rs 5 per tick (Silver Mini)
-        "currency": "INR",
+        "pnl_per_tick": 5,              # Rs 5 per tick (Silver Mini)
+        "currency": "USD",
         "market": "MCX",
-        "timeframe": "1d",
-        "min_lot": 1,
+        "timeframe": "1h",
+        "min_lot": 0.01,
         "mcx_unit": "Rs/Kg",
     },
     "MCX_CRUDE": {
         "name": "MCX Crude Oil Futures",
-        "yf_ticker": "CL=F",             # International proxy (USDINR conversion)
-        "intl_proxy": True,               # Flag: needs USDINR conversion
+        "yf_ticker": "CL=F",             # NYMEX WTI Crude futures proxy
         "contract_size": 100,             # 100 barrels
         "tick_size": 1,                   # Rs 1 per barrel
-        "pnl_per_tick": 100,              # Rs 100 per tick
-        "currency": "INR",
+        "pnl_per_tick": 100,             # Rs 100 per tick
+        "currency": "USD",
         "market": "MCX",
         "timeframe": "1h",
-        "min_lot": 1,
+        "min_lot": 0.01,
         "mcx_unit": "Rs/barrel",
     },
     "MCX_NATGAS": {
         "name": "MCX Natural Gas Futures",
-        "yf_ticker": "NG=F",             # International proxy
-        "intl_proxy": True,
+        "yf_ticker": "NG=F",             # NYMEX Natural Gas futures proxy
         "contract_size": 1250,            # 1,250 mmBtu
         "tick_size": 0.10,               # Rs 0.10 per mmBtu
         "pnl_per_tick": 125,             # Rs 125 per tick
-        "currency": "INR",
+        "currency": "USD",
         "market": "MCX",
         "timeframe": "1h",
-        "min_lot": 1,
+        "min_lot": 0.01,
         "mcx_unit": "Rs/mmBtu",
     },
     "MCX_COPPER": {
         "name": "MCX Copper Futures",
-        "yf_ticker": "HG=F",             # International proxy
-        "intl_proxy": True,
+        "yf_ticker": "HG=F",             # COMEX Copper futures proxy
         "contract_size": 1000,            # 1 MT (1000 Kg)
         "tick_size": 0.05,               # Rs 0.05 per Kg
         "pnl_per_tick": 50,              # Rs 50 per tick
-        "currency": "INR",
+        "currency": "USD",
         "market": "MCX",
         "timeframe": "1h",
-        "min_lot": 1,
+        "min_lot": 0.01,
+        "mcx_unit": "Rs/Kg",
+    },
+    "MCX_ALUMINIUM": {
+        "name": "MCX Aluminium Futures",
+        "yf_ticker": "ALI=F",            # LME Aluminium futures proxy
+        "contract_size": 1000,            # 1 MT (1000 Kg)
+        "tick_size": 0.05,               # Rs 0.05 per Kg
+        "pnl_per_tick": 50,              # Rs 50 per tick
+        "currency": "USD",
+        "market": "MCX",
+        "timeframe": "1h",
+        "min_lot": 0.01,
+        "mcx_unit": "Rs/Kg",
+    },
+    "MCX_ZINC": {
+        "name": "MCX Zinc Futures",
+        "yf_ticker": "ZN=F",             # LME Zinc futures proxy
+        "contract_size": 1000,            # 1 MT (1000 Kg) (MCX: 5 MT standard)
+        "tick_size": 0.05,               # Rs 0.05 per Kg
+        "pnl_per_tick": 50,              # Rs 50 per tick
+        "currency": "USD",
+        "market": "MCX",
+        "timeframe": "1h",
+        "min_lot": 0.01,
         "mcx_unit": "Rs/Kg",
     },
 }

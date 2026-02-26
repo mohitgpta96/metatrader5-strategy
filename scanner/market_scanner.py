@@ -19,10 +19,14 @@ from config.market_hours import is_nse_open, is_mcx_open, is_commodity_open, mar
 
 
 def scan_commodities():
-    """Scan Gold, Silver, Crude Oil for signals."""
-    print("\n--- Scanning Commodity Futures ---")
+    """
+    Scan Gold, Silver, Crude Oil etc. for signals.
+    Returns signals, statuses, and cached data dict for MCX reuse.
+    """
+    print("\n--- Scanning Global Commodity Futures ---")
     signals = []
     statuses = []
+    cached_data = {}  # ticker -> (df_1h, df_4h) for MCX reuse
 
     for ticker in ALL_COMMODITY_TICKERS:
         name = get_display_name(ticker)
@@ -31,6 +35,9 @@ def scan_commodities():
         # Fetch 1H data (primary) and 4H data (confirmation)
         df_1h = fetch_single(ticker, period="60d", interval="1h")
         df_4h = fetch_single(ticker, period="60d", interval="4h")
+
+        # Cache for MCX reuse
+        cached_data[ticker] = (df_1h, df_4h)
 
         if df_1h is None:
             print(f"    [SKIP] No data for {name}")
@@ -49,44 +56,48 @@ def scan_commodities():
         if status:
             statuses.append(status)
 
-    return signals, statuses
+    return signals, statuses, cached_data
 
 
-def scan_mcx():
-    """Scan MCX Indian Commodity Futures for signals."""
+def scan_mcx(already_scanned=None):
+    """
+    Scan MCX Indian Commodity Futures for signals.
+    Uses international futures tickers as proxy (MCX follows these exactly).
+    If a ticker was already scanned in global commodities, reuses that data.
+    """
     print("\n--- Scanning MCX Indian Commodity Futures ---")
     signals = []
     statuses = []
+    already_scanned = already_scanned or {}
 
     for key, info in MCX_COMMODITIES.items():
         ticker = info["yf_ticker"]
         name = info["name"]
-        print(f"  Checking {name}...")
+        print(f"  Checking {name} ({ticker})...")
 
-        # ETF proxies use daily data, international proxies use 1h
-        if info.get("intl_proxy"):
-            df = fetch_single(ticker, period="60d", interval="1h")
-            df_conf = fetch_single(ticker, period="60d", interval="4h")
+        # Reuse data if already fetched in global commodity scan
+        if ticker in already_scanned:
+            df_1h, df_4h = already_scanned[ticker]
         else:
-            df = fetch_single(ticker, period="1y", interval="1d")
-            df_conf = None
+            df_1h = fetch_single(ticker, period="60d", interval="1h")
+            df_4h = fetch_single(ticker, period="60d", interval="4h")
 
-        if df is None or df.empty:
+        if df_1h is None or df_1h.empty:
             print(f"    [SKIP] No data for {name}")
             continue
 
-        signal = check_signal(df, df_confirmation=df_conf, ticker=ticker)
+        signal = check_signal(df_1h, df_confirmation=df_4h, ticker=ticker)
         if signal:
             # Override type and name for MCX
             signal["type"] = "mcx_commodity"
             signal["name"] = name
             signal["mcx_key"] = key
             signals.append(signal)
-            print(f"    SIGNAL: {signal['direction']} at {signal['entry']}")
+            print(f"    SIGNAL: {signal['direction']} at ${signal['entry']}")
         else:
             print(f"    No signal")
 
-        status = check_trend_status(df, ticker=ticker)
+        status = check_trend_status(df_1h, ticker=ticker)
         if status:
             status["name"] = name
             status["type"] = "mcx_commodity"
@@ -190,6 +201,7 @@ def scan_all():
 
     commodity_signals = []
     commodity_statuses = []
+    commodity_cached = {}
     mcx_signals = []
     mcx_statuses = []
     index_statuses = []
@@ -198,7 +210,7 @@ def scan_all():
 
     # Global Commodities - only if COMEX/NYMEX is live
     if commodity_live:
-        commodity_signals, commodity_statuses = scan_commodities()
+        commodity_signals, commodity_statuses, commodity_cached = scan_commodities()
         if intel:
             commodity_signals = _filter_signals_by_outlook(commodity_signals, intel)
     else:
@@ -206,7 +218,7 @@ def scan_all():
 
     # MCX Indian Commodities - only if MCX is live
     if mcx_live:
-        mcx_signals, mcx_statuses = scan_mcx()
+        mcx_signals, mcx_statuses = scan_mcx(already_scanned=commodity_cached)
         if intel:
             mcx_signals = _filter_signals_by_outlook(mcx_signals, intel)
     else:
