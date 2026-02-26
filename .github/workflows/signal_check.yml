@@ -3,16 +3,13 @@ name: Market Signal Scanner
 on:
   schedule:
     # NSE hours: 9:15 AM - 3:30 PM IST = 3:45 AM - 10:00 AM UTC
-    # Run hourly during NSE: Mon-Fri 4,5,6,7,8,9 UTC (covers 9:30 AM - 3:30 PM IST)
     - cron: '33 4-9 * * 1-5'
 
     # Commodity hours: Nearly 24/5 (Mon 3:30 AM IST - Sat 2:30 AM IST)
-    # Run hourly outside NSE hours to cover commodity-only window: Mon-Fri
-    # Night/early morning IST = afternoon/evening UTC previous day
-    - cron: '33 10-23 * * 1-5'   # 3:30 PM - 5:30 AM IST (Mon-Fri after NSE close)
-    - cron: '33 0-3 * * 1-5'     # 5:30 AM - 9:30 AM IST (Mon-Fri before NSE open)
+    - cron: '33 10-23 * * 1-5'
+    - cron: '33 0-3 * * 1-5'
 
-    # Sunday evening (Gold market opens): Sun 10 PM UTC = Mon 3:30 AM IST
+    # Sunday evening (Gold market opens)
     - cron: '33 22-23 * * 0'
 
   workflow_dispatch: # Manual trigger
@@ -23,6 +20,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -33,12 +32,13 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Download signal logs
-        uses: actions/download-artifact@v4
-        with:
-          name: signal-logs
-          path: data/signals_log/
-        continue-on-error: true  # First run won't have logs yet
+      - name: Restore signal logs
+        run: |
+          mkdir -p data/signals_log
+          if git ls-remote --heads origin signal-data | grep -q signal-data; then
+            git fetch origin signal-data
+            git checkout origin/signal-data -- data/signals_log/ 2>/dev/null || echo "No logs yet"
+          fi
 
       - name: Run signal check + track
         env:
@@ -48,11 +48,29 @@ jobs:
           RISK_PERCENT: '1.0'
         run: python run.py --check-signals
 
-      - name: Upload signal logs
+      - name: Persist signal logs
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: signal-logs
-          path: data/signals_log/
-          retention-days: 90
-          overwrite: true
+        run: |
+          if [ -d "data/signals_log" ] && ls data/signals_log/*.json >/dev/null 2>&1; then
+            # Copy logs to temp
+            cp -r data/signals_log /tmp/signal_logs_backup
+
+            # Setup git
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+
+            # Switch to signal-data branch (create if needed)
+            if git ls-remote --heads origin signal-data | grep -q signal-data; then
+              git checkout signal-data
+            else
+              git checkout --orphan signal-data
+              git rm -rf .
+            fi
+
+            # Copy logs back and commit
+            mkdir -p data/signals_log
+            cp -r /tmp/signal_logs_backup/* data/signals_log/
+            git add data/signals_log/
+            git diff --cached --quiet || git commit -m "Update signal logs $(date -u +%Y-%m-%dT%H:%M)"
+            git push origin signal-data
+          fi

@@ -13,6 +13,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -23,14 +25,15 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Download signal logs
-        uses: actions/download-artifact@v4
-        with:
-          name: signal-logs
-          path: data/signals_log/
-        continue-on-error: true  # First run won't have artifacts
+      - name: Restore signal logs
+        run: |
+          mkdir -p data/signals_log
+          if git ls-remote --heads origin signal-data | grep -q signal-data; then
+            git fetch origin signal-data
+            git checkout origin/signal-data -- data/signals_log/ 2>/dev/null || echo "No logs yet"
+          fi
 
-      - name: Run weekly report
+      - name: Generate weekly report
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -38,9 +41,25 @@ jobs:
           RISK_PERCENT: '1.0'
         run: python run.py --weekly-report
 
-      - name: Upload signal logs
-        uses: actions/upload-artifact@v4
-        with:
-          name: signal-logs
-          path: data/signals_log/
-          retention-days: 90
+      - name: Persist signal logs (after archive)
+        if: always()
+        run: |
+          if [ -d "data/signals_log" ] && ls data/signals_log/*.json >/dev/null 2>&1; then
+            cp -r data/signals_log /tmp/signal_logs_backup
+
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+
+            if git ls-remote --heads origin signal-data | grep -q signal-data; then
+              git checkout signal-data
+            else
+              git checkout --orphan signal-data
+              git rm -rf .
+            fi
+
+            mkdir -p data/signals_log
+            cp -r /tmp/signal_logs_backup/* data/signals_log/
+            git add data/signals_log/
+            git diff --cached --quiet || git commit -m "Weekly report - archive signals $(date -u +%Y-%m-%dT%H:%M)"
+            git push origin signal-data
+          fi
