@@ -31,6 +31,9 @@ def main():
     parser.add_argument("--subscribers", action="store_true", help="List all subscribers")
     parser.add_argument("--add-user", type=str, help="Add a user by chat ID (e.g., --add-user 123456789)")
     parser.add_argument("--add-channel", type=str, help="Add a channel (e.g., --add-channel @my_channel)")
+    parser.add_argument("--track", action="store_true", help="Check active signals against current prices")
+    parser.add_argument("--weekly-report", action="store_true", help="Generate 7-day performance report")
+    parser.add_argument("--tracker-status", action="store_true", help="Show tracker stats")
 
     args = parser.parse_args()
 
@@ -54,6 +57,12 @@ def main():
         cmd_add_user(args.add_user)
     elif args.add_channel:
         cmd_add_channel(args.add_channel)
+    elif args.track:
+        cmd_track_signals()
+    elif args.weekly_report:
+        cmd_weekly_report()
+    elif args.tracker_status:
+        cmd_tracker_status()
     else:
         interactive_menu()
 
@@ -72,6 +81,9 @@ def interactive_menu():
         print("  6. Test Telegram Bot")
         print("  7. Fetch & Cache All Data")
         print("  8. Manage Subscribers")
+        print("  9. Track Active Signals")
+        print("  10. Weekly Performance Report (7 days)")
+        print("  11. Tracker Status")
         print("  0. Exit")
         print("=" * 50)
 
@@ -93,6 +105,12 @@ def interactive_menu():
             cmd_fetch_all()
         elif choice == "8":
             cmd_manage_subscribers()
+        elif choice == "9":
+            cmd_track_signals()
+        elif choice == "10":
+            cmd_weekly_report()
+        elif choice == "11":
+            cmd_tracker_status()
         elif choice == "0":
             print("Bye!")
             break
@@ -204,12 +222,13 @@ def cmd_fetch_all():
 
 def cmd_check_signals():
     """
-    Full scan + send signals via Telegram.
+    Full scan + send signals via Telegram + log & track signals.
     Used by GitHub Actions cron job.
-    Includes market intelligence (macro + geo-political analysis).
     """
     from scanner.market_scanner import scan_all
     from bot.telegram_bot import send_signal_alert, check_new_subscribers
+    from tracker.signal_logger import log_signal
+    from tracker.signal_tracker import track_all_signals
 
     # Auto-register any new /start users before sending
     new = check_new_subscribers()
@@ -220,6 +239,9 @@ def cmd_check_signals():
 
     if not results.get("markets_open", True):
         print("\nAll markets closed. Nothing to send.")
+        # Still track existing signals even when markets close
+        print("\n--- Tracking Active Signals ---")
+        track_all_signals()
         return
 
     signals = results["signals"]
@@ -228,9 +250,14 @@ def cmd_check_signals():
         print(f"\n{len(signals)} signal(s) found! Sending to Telegram...")
         for signal in signals:
             send_signal_alert(signal)
-            print(f"  Sent: {signal['direction']} {signal['name']}")
+            log_signal(signal)  # Auto-log every signal
+            print(f"  Sent & Logged: {signal['direction']} {signal['name']}")
     else:
         print("\nNo signals at this time.")
+
+    # Track all active signals against current prices
+    print("\n--- Tracking Active Signals ---")
+    track_all_signals()
 
 
 def cmd_list_subscribers():
@@ -327,6 +354,59 @@ def cmd_manage_subscribers():
 
         elif choice == "0":
             break
+
+
+def cmd_track_signals():
+    """Manually trigger signal tracking."""
+    from tracker.signal_tracker import track_all_signals
+    from tracker.signal_logger import get_log_stats
+    print("Running signal tracker...")
+    track_all_signals()
+    stats = get_log_stats()
+    print(f"\nTracker Stats: {stats['active']} active, {stats['resolved_pending']} resolved, {stats['archived']} archived")
+
+
+def cmd_weekly_report():
+    """Generate and optionally send 7-day report."""
+    from tracker.weekly_report import generate_weekly_report
+    from tracker.signal_logger import archive_resolved
+    from bot.telegram_bot import send_message_sync
+
+    print("Generating 7-day performance report...\n")
+    report, data = generate_weekly_report()
+    print(report)
+
+    if data.get("total", 0) > 0:
+        print("\nSending report to Telegram...")
+        send_message_sync(report)
+        print("Report sent!")
+
+        # Archive resolved signals
+        archived = archive_resolved()
+        if archived > 0:
+            print(f"Archived {archived} resolved signal(s).")
+
+
+def cmd_tracker_status():
+    """Show tracker stats."""
+    from tracker.signal_logger import get_log_stats, get_active_signals
+    stats = get_log_stats()
+    print("\nSignal Tracker Status")
+    print("-" * 35)
+    print(f"  Active:    {stats['active']}")
+    print(f"  Resolved:  {stats['resolved_pending']}")
+    print(f"  Archived:  {stats['archived']}")
+    print(f"  Total:     {stats['total']}")
+
+    active = get_active_signals()
+    if active:
+        print(f"\nActive Signals:")
+        for s in active:
+            entry = s["entry"]
+            curr = s.get("current_price", entry)
+            d = s["direction"]
+            pnl = (curr - entry) if d == "BUY" else (entry - curr)
+            print(f"  {s['signal_id']} | {d:4} {s['name'][:20]:<20} | Entry: {entry:.2f} | Now: {curr:.2f} | P&L: {pnl:+.2f}")
 
 
 def _print_signals(signals):

@@ -1,24 +1,14 @@
-name: Market Signal Scanner
+name: Weekly Performance Report
 
 on:
   schedule:
-    # NSE hours: 9:15 AM - 3:30 PM IST = 3:45 AM - 10:00 AM UTC
-    # Run hourly during NSE: Mon-Fri 4,5,6,7,8,9 UTC (covers 9:30 AM - 3:30 PM IST)
-    - cron: '33 4-9 * * 1-5'
-
-    # Commodity hours: Nearly 24/5 (Mon 3:30 AM IST - Sat 2:30 AM IST)
-    # Run hourly outside NSE hours to cover commodity-only window: Mon-Fri
-    # Night/early morning IST = afternoon/evening UTC previous day
-    - cron: '33 10-23 * * 1-5'   # 3:30 PM - 5:30 AM IST (Mon-Fri after NSE close)
-    - cron: '33 0-3 * * 1-5'     # 5:30 AM - 9:30 AM IST (Mon-Fri before NSE open)
-
-    # Sunday evening (Gold market opens): Sun 10 PM UTC = Mon 3:30 AM IST
-    - cron: '33 22-23 * * 0'
+    # Every Sunday at 6:00 PM IST = 12:30 PM UTC
+    - cron: '30 12 * * 0'
 
   workflow_dispatch: # Manual trigger
 
 jobs:
-  scan:
+  report:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -38,21 +28,19 @@ jobs:
         with:
           name: signal-logs
           path: data/signals_log/
-        continue-on-error: true  # First run won't have logs yet
+        continue-on-error: true  # First run won't have artifacts
 
-      - name: Run signal check + track
+      - name: Run weekly report
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           ACCOUNT_BALANCE: ${{ secrets.ACCOUNT_BALANCE }}
           RISK_PERCENT: '1.0'
-        run: python run.py --check-signals
+        run: python run.py --weekly-report
 
       - name: Upload signal logs
-        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: signal-logs
           path: data/signals_log/
           retention-days: 90
-          overwrite: true
