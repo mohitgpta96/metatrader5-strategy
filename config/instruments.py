@@ -1,14 +1,18 @@
 """
 Instrument definitions for all markets.
 All instruments are FUTURES contracts traded on MetaTrader 5 (Money Plant server).
-Covers: Gold, Silver, Crude Oil, Natural Gas, Copper, Brent + NIFTY F&O Stocks + Indices.
+Covers:
+  - US/Global Commodity Futures (COMEX/NYMEX/ICE)
+  - Indian Commodity Futures (MCX) via ETF/conversion proxies
+  - NIFTY F&O Stocks + Indices
 
-NOTE: yfinance does NOT have Indian futures data (NSE F&O / MCX).
-For Indian stocks, spot prices (.NS) are used as proxy - spot and futures
-move identically for signal generation purposes.
+NOTE: yfinance does NOT have MCX or NSE F&O futures data.
+For MCX: Gold/Silver ETFs (GOLDBEES.NS, SILVERBEES.NS) used as INR proxies.
+         Oil/Gas/Copper use international tickers + USDINR conversion.
+For Indian stocks: spot prices (.NS) used as proxy.
 """
 
-# --- Commodity FUTURES (yfinance futures tickers) ---
+# --- US/Global Commodity FUTURES (yfinance futures tickers) ---
 COMMODITIES = {
     "GOLD": {
         "name": "Gold Futures (XAUUSD)",
@@ -91,6 +95,81 @@ COMMODITIES = {
     },
 }
 
+# --- Indian Commodity FUTURES (MCX) ---
+# MCX data not on yfinance. Using ETFs and international proxies.
+# MCX hours: 9:00 AM - 11:30 PM IST (summer) / 11:55 PM (winter)
+MCX_COMMODITIES = {
+    "MCX_GOLD": {
+        "name": "MCX Gold Futures",
+        "yf_ticker": "GOLDBEES.NS",       # Gold ETF as INR proxy
+        "contract_size": 100,              # Gold Mini: 100g
+        "tick_size": 1,                    # Rs 1 per 10g
+        "pnl_per_tick": 10,               # Rs 10 per tick (Gold Mini)
+        "currency": "INR",
+        "market": "MCX",
+        "timeframe": "1d",
+        "min_lot": 1,
+        "mcx_unit": "Rs/10g",
+    },
+    "MCX_SILVER": {
+        "name": "MCX Silver Futures",
+        "yf_ticker": "SILVERBEES.NS",     # Silver ETF as INR proxy
+        "contract_size": 5,               # Silver Mini: 5 Kg
+        "tick_size": 1,                   # Rs 1 per Kg
+        "pnl_per_tick": 5,               # Rs 5 per tick (Silver Mini)
+        "currency": "INR",
+        "market": "MCX",
+        "timeframe": "1d",
+        "min_lot": 1,
+        "mcx_unit": "Rs/Kg",
+    },
+    "MCX_CRUDE": {
+        "name": "MCX Crude Oil Futures",
+        "yf_ticker": "CL=F",             # International proxy (USDINR conversion)
+        "intl_proxy": True,               # Flag: needs USDINR conversion
+        "contract_size": 100,             # 100 barrels
+        "tick_size": 1,                   # Rs 1 per barrel
+        "pnl_per_tick": 100,              # Rs 100 per tick
+        "currency": "INR",
+        "market": "MCX",
+        "timeframe": "1h",
+        "min_lot": 1,
+        "mcx_unit": "Rs/barrel",
+    },
+    "MCX_NATGAS": {
+        "name": "MCX Natural Gas Futures",
+        "yf_ticker": "NG=F",             # International proxy
+        "intl_proxy": True,
+        "contract_size": 1250,            # 1,250 mmBtu
+        "tick_size": 0.10,               # Rs 0.10 per mmBtu
+        "pnl_per_tick": 125,             # Rs 125 per tick
+        "currency": "INR",
+        "market": "MCX",
+        "timeframe": "1h",
+        "min_lot": 1,
+        "mcx_unit": "Rs/mmBtu",
+    },
+    "MCX_COPPER": {
+        "name": "MCX Copper Futures",
+        "yf_ticker": "HG=F",             # International proxy
+        "intl_proxy": True,
+        "contract_size": 1000,            # 1 MT (1000 Kg)
+        "tick_size": 0.05,               # Rs 0.05 per Kg
+        "pnl_per_tick": 50,              # Rs 50 per tick
+        "currency": "INR",
+        "market": "MCX",
+        "timeframe": "1h",
+        "min_lot": 1,
+        "mcx_unit": "Rs/Kg",
+    },
+}
+
+# All MCX tickers for scanning
+ALL_MCX_TICKERS = [v["yf_ticker"] for v in MCX_COMMODITIES.values()]
+
+# MCX ticker lookup (yf_ticker -> MCX info)
+_MCX_TICKER_MAP = {v["yf_ticker"]: (k, v) for k, v in MCX_COMMODITIES.items()}
+
 # --- Indian Indices (Spot - used for trend confirmation) ---
 # NOTE: Futures tickers not available on yfinance for NSE
 INDICES = {
@@ -151,21 +230,30 @@ ALL_COMMODITY_TICKERS = [v["yf_ticker"] for v in COMMODITIES.values()]
 ALL_INDEX_TICKERS = [v["yf_ticker"] for v in INDICES.values()]
 
 # Everything combined
-ALL_TICKERS = ALL_COMMODITY_TICKERS + ALL_INDEX_TICKERS + ALL_STOCK_TICKERS
+ALL_TICKERS = ALL_COMMODITY_TICKERS + ALL_MCX_TICKERS + ALL_INDEX_TICKERS + ALL_STOCK_TICKERS
 
 
 def get_commodity_info(ticker):
-    """Get commodity info by yfinance ticker."""
+    """Get commodity info by yfinance ticker (US/Global commodities)."""
     for key, info in COMMODITIES.items():
         if ticker in (info["yf_ticker"], info.get("yf_ticker_alt", "")):
             return info
     return None
 
 
+def get_mcx_info(ticker):
+    """Get MCX commodity info by yfinance ticker."""
+    if ticker in _MCX_TICKER_MAP:
+        return _MCX_TICKER_MAP[ticker][1]
+    return None
+
+
 def get_instrument_type(ticker):
-    """Determine if ticker is commodity, index, or stock."""
+    """Determine if ticker is commodity, mcx_commodity, index, or stock."""
     if ticker in ALL_COMMODITY_TICKERS:
         return "commodity"
+    if ticker in ALL_MCX_TICKERS:
+        return "mcx_commodity"
     if ticker in ALL_INDEX_TICKERS:
         return "index"
     if ticker in ALL_STOCK_TICKERS:
@@ -177,6 +265,9 @@ def get_display_name(ticker):
     """Get human-readable name for a ticker."""
     for info in COMMODITIES.values():
         if ticker in (info["yf_ticker"], info.get("yf_ticker_alt", "")):
+            return info["name"]
+    for info in MCX_COMMODITIES.values():
+        if ticker == info["yf_ticker"]:
             return info["name"]
     for info in INDICES.values():
         if ticker == info["yf_ticker"]:

@@ -13,9 +13,9 @@ from strategy.signals import check_signal, check_trend_status
 from strategy.macro_analysis import generate_market_intelligence, format_intelligence_report
 from config.instruments import (
     ALL_COMMODITY_TICKERS, ALL_INDEX_TICKERS, ALL_STOCK_TICKERS,
-    COMMODITIES, get_display_name,
+    ALL_MCX_TICKERS, MCX_COMMODITIES, COMMODITIES, get_display_name,
 )
-from config.market_hours import is_nse_open, is_commodity_open, market_status_summary
+from config.market_hours import is_nse_open, is_mcx_open, is_commodity_open, market_status_summary
 
 
 def scan_commodities():
@@ -47,6 +47,49 @@ def scan_commodities():
         # Always get status for daily digest
         status = check_trend_status(df_1h, ticker=ticker)
         if status:
+            statuses.append(status)
+
+    return signals, statuses
+
+
+def scan_mcx():
+    """Scan MCX Indian Commodity Futures for signals."""
+    print("\n--- Scanning MCX Indian Commodity Futures ---")
+    signals = []
+    statuses = []
+
+    for key, info in MCX_COMMODITIES.items():
+        ticker = info["yf_ticker"]
+        name = info["name"]
+        print(f"  Checking {name}...")
+
+        # ETF proxies use daily data, international proxies use 1h
+        if info.get("intl_proxy"):
+            df = fetch_single(ticker, period="60d", interval="1h")
+            df_conf = fetch_single(ticker, period="60d", interval="4h")
+        else:
+            df = fetch_single(ticker, period="1y", interval="1d")
+            df_conf = None
+
+        if df is None or df.empty:
+            print(f"    [SKIP] No data for {name}")
+            continue
+
+        signal = check_signal(df, df_confirmation=df_conf, ticker=ticker)
+        if signal:
+            # Override type and name for MCX
+            signal["type"] = "mcx_commodity"
+            signal["name"] = name
+            signal["mcx_key"] = key
+            signals.append(signal)
+            print(f"    SIGNAL: {signal['direction']} at {signal['entry']}")
+        else:
+            print(f"    No signal")
+
+        status = check_trend_status(df, ticker=ticker)
+        if status:
+            status["name"] = name
+            status["type"] = "mcx_commodity"
             statuses.append(status)
 
     return signals, statuses
@@ -114,6 +157,7 @@ def scan_all():
     Returns all signals, statuses, and intelligence report.
     """
     commodity_live = is_commodity_open()
+    mcx_live = is_mcx_open()
     nse_live = is_nse_open()
 
     print("=" * 60)
@@ -121,11 +165,12 @@ def scan_all():
     print("=" * 60)
     print(f"\n{market_status_summary()}")
 
-    if not commodity_live and not nse_live:
+    if not commodity_live and not mcx_live and not nse_live:
         print("\n[!] ALL MARKETS CLOSED. No signals to generate.")
         return {
             "signals": [], "statuses": [],
             "commodity_signals": [], "commodity_statuses": [],
+            "mcx_signals": [], "mcx_statuses": [],
             "index_statuses": [],
             "stock_signals": [], "stock_statuses": [],
             "intelligence": None, "intelligence_report": None,
@@ -145,17 +190,27 @@ def scan_all():
 
     commodity_signals = []
     commodity_statuses = []
+    mcx_signals = []
+    mcx_statuses = []
     index_statuses = []
     stock_signals = []
     stock_statuses = []
 
-    # Commodities - only if commodity market is live
+    # Global Commodities - only if COMEX/NYMEX is live
     if commodity_live:
         commodity_signals, commodity_statuses = scan_commodities()
         if intel:
             commodity_signals = _filter_signals_by_outlook(commodity_signals, intel)
     else:
-        print("\n--- Commodity Market CLOSED - Skipping ---")
+        print("\n--- COMEX/NYMEX CLOSED - Skipping Global Commodities ---")
+
+    # MCX Indian Commodities - only if MCX is live
+    if mcx_live:
+        mcx_signals, mcx_statuses = scan_mcx()
+        if intel:
+            mcx_signals = _filter_signals_by_outlook(mcx_signals, intel)
+    else:
+        print("\n--- MCX CLOSED - Skipping Indian Commodities ---")
 
     # Indices & Stocks - only if NSE is live
     if nse_live:
@@ -166,14 +221,16 @@ def scan_all():
     else:
         print("\n--- NSE CLOSED - Skipping Stocks & Indices ---")
 
-    all_signals = commodity_signals + stock_signals
-    all_statuses = commodity_statuses + index_statuses + stock_statuses
+    all_signals = commodity_signals + mcx_signals + stock_signals
+    all_statuses = commodity_statuses + mcx_statuses + index_statuses + stock_statuses
 
     print(f"\n{'=' * 60}")
     print(f"SCAN COMPLETE")
     print(f"  Total Signals: {len(all_signals)}")
     if commodity_live:
-        print(f"  - Commodity Futures: {len(commodity_signals)}")
+        print(f"  - Global Commodity Futures: {len(commodity_signals)}")
+    if mcx_live:
+        print(f"  - MCX Indian Commodities: {len(mcx_signals)}")
     if nse_live:
         print(f"  - Stock Futures: {len(stock_signals)}")
     if intel:
@@ -186,6 +243,8 @@ def scan_all():
         "statuses": all_statuses,
         "commodity_signals": commodity_signals,
         "commodity_statuses": commodity_statuses,
+        "mcx_signals": mcx_signals,
+        "mcx_statuses": mcx_statuses,
         "index_statuses": index_statuses,
         "stock_signals": stock_signals,
         "stock_statuses": stock_statuses,

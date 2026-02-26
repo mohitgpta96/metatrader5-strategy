@@ -35,6 +35,21 @@ def generate_digest():
         lines.append(f"   Entry: ${signal['entry']} | SL: ${signal['stop_loss']} | TP1: ${signal['tp1']}")
         lines.append(f"   Lot: {signal['lot_size']} | Loss: ${signal['potential_loss']} | Gain: ${signal['potential_tp1']}")
 
+    # --- MCX Indian Commodities ---
+    if results.get("mcx_statuses") or results.get("mcx_signals"):
+        lines.append("")
+        lines.append("MCX INDIAN COMMODITY FUTURES")
+        lines.append("-" * 30)
+        for status in results.get("mcx_statuses", []):
+            emoji = _condition_emoji(status["condition"])
+            lines.append(f"{emoji} {status['name']}: Rs {status['close']}")
+            lines.append(f"   Trend: {status['trend']} | RSI: {status['rsi']} | {status['condition']}")
+
+        for signal in results.get("mcx_signals", []):
+            direction_emoji = "BUY" if signal["direction"] == "BUY" else "SELL"
+            lines.append(f"\n   >> {direction_emoji} SIGNAL: {signal['name']}")
+            lines.append(f"   Entry: Rs {signal['entry']} | SL: Rs {signal['stop_loss']} | TP1: Rs {signal['tp1']}")
+
     # --- Indices ---
     lines.append("")
     lines.append("INDEX FUTURES")

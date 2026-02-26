@@ -12,7 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from config.settings import ACCOUNT_BALANCE, RISK_PERCENT, MAX_LOT_PER_1000
-from config.instruments import COMMODITIES, get_commodity_info, get_instrument_type
+from config.instruments import COMMODITIES, get_commodity_info, get_mcx_info, get_instrument_type
 
 
 def calculate_lot_size(
@@ -71,6 +71,29 @@ def calculate_lot_size(
             "instrument": commodity_info["name"],
             "currency": commodity_info["currency"],
             "was_capped": raw_lot > max_lot,
+        }
+
+    elif inst_type == "mcx_commodity":
+        # MCX commodities: position sizing in INR
+        # Use same risk % approach as stocks
+        raw_qty = risk_amount / sl_distance
+        qty = max(1, int(raw_qty))
+
+        actual_risk = sl_distance * qty
+
+        mcx_info = get_mcx_info(ticker)
+        inst_name = mcx_info["name"] if mcx_info else ticker
+
+        return {
+            "lot_size": qty,
+            "risk_amount": round(risk_amount, 2),
+            "actual_risk": round(actual_risk, 2),
+            "sl_distance": round(sl_distance, 2),
+            "entry_price": round(entry_price, 2),
+            "stop_loss": round(stop_loss_price, 2),
+            "instrument": inst_name,
+            "currency": "INR",
+            "was_capped": False,
         }
 
     elif inst_type == "stock":
@@ -141,7 +164,7 @@ def calculate_trade_levels(ticker, entry_price, atr, direction="BUY"):
         potential_loss = sl_distance * dpm * lot_size
         potential_tp1 = tp1_distance * dpm * lot_size
         potential_tp2 = tp2_distance * dpm * lot_size
-    else:
+    else:  # mcx_commodity, stock
         potential_loss = sl_distance * lot_size
         potential_tp1 = tp1_distance * lot_size
         potential_tp2 = tp2_distance * lot_size

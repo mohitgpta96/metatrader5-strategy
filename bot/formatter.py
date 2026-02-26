@@ -6,8 +6,10 @@ Formats trading signals into clean, readable Telegram messages.
 
 def format_signal(signal):
     """Format a single trading signal for Telegram."""
-    is_commodity = signal["type"] == "commodity"
-    currency = "$" if is_commodity else "Rs "
+    sig_type = signal["type"]
+    is_global_commodity = sig_type == "commodity"
+    is_mcx = sig_type == "mcx_commodity"
+    currency = "$" if is_global_commodity else "Rs "
 
     direction_label = "BUY" if signal["direction"] == "BUY" else "SELL"
 
@@ -15,13 +17,10 @@ def format_signal(signal):
     tp1_diff = abs(signal["tp1"] - signal["entry"])
     tp2_diff = abs(signal["tp2"] - signal["entry"])
 
-    # Add FUTURES label
+    # Name with market label
     name = signal['name']
-    if is_commodity:
-        # Already has "Futures" in name from instruments.py
-        pass
-    elif signal["type"] == "stock":
-        name = f"{name} FUT"  # Label stock signals as futures
+    if sig_type == "stock":
+        name = f"{name} FUT"
 
     lines = [
         f"{direction_label} SIGNAL -- {name}",
@@ -33,7 +32,7 @@ def format_signal(signal):
         "=" * 35,
     ]
 
-    if is_commodity:
+    if is_global_commodity:
         from config.settings import ACCOUNT_BALANCE, RISK_PERCENT
         lines.extend([
             f"Account: ${ACCOUNT_BALANCE:,.0f} | Risk: {RISK_PERCENT}%",
