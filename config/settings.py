@@ -12,7 +12,16 @@ load_dotenv(BASE_DIR / ".env")
 
 # --- Telegram Bot ---
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")  # Legacy single ID
+
+# Multiple recipients: comma-separated chat IDs and/or channel usernames
+# Example: "633478120,987654321,@mt5_signals_channel"
+_raw_recipients = os.getenv("TELEGRAM_RECIPIENTS", "")
+TELEGRAM_RECIPIENTS = [r.strip() for r in _raw_recipients.split(",") if r.strip()]
+
+# If RECIPIENTS not set, fall back to single CHAT_ID
+if not TELEGRAM_RECIPIENTS and TELEGRAM_CHAT_ID:
+    TELEGRAM_RECIPIENTS = [TELEGRAM_CHAT_ID]
 
 # --- Account Settings ---
 ACCOUNT_BALANCE = float(os.getenv("ACCOUNT_BALANCE", "10000"))

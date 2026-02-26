@@ -28,6 +28,9 @@ def main():
     parser.add_argument("--backtest", action="store_true", help="Run backtests on Gold + top stocks")
     parser.add_argument("--test-telegram", action="store_true", help="Send test message to Telegram")
     parser.add_argument("--check-signals", action="store_true", help="Scan all + send signals via Telegram (for GitHub Actions)")
+    parser.add_argument("--subscribers", action="store_true", help="List all subscribers")
+    parser.add_argument("--add-user", type=str, help="Add a user by chat ID (e.g., --add-user 123456789)")
+    parser.add_argument("--add-channel", type=str, help="Add a channel (e.g., --add-channel @my_channel)")
 
     args = parser.parse_args()
 
@@ -45,6 +48,12 @@ def main():
         cmd_test_telegram()
     elif args.check_signals:
         cmd_check_signals()
+    elif args.subscribers:
+        cmd_list_subscribers()
+    elif args.add_user:
+        cmd_add_user(args.add_user)
+    elif args.add_channel:
+        cmd_add_channel(args.add_channel)
     else:
         interactive_menu()
 
@@ -62,6 +71,7 @@ def interactive_menu():
         print("  5. Run Backtest")
         print("  6. Test Telegram Bot")
         print("  7. Fetch & Cache All Data")
+        print("  8. Manage Subscribers")
         print("  0. Exit")
         print("=" * 50)
 
@@ -81,6 +91,8 @@ def interactive_menu():
             cmd_test_telegram()
         elif choice == "7":
             cmd_fetch_all()
+        elif choice == "8":
+            cmd_manage_subscribers()
         elif choice == "0":
             print("Bye!")
             break
@@ -196,8 +208,12 @@ def cmd_check_signals():
     Used by GitHub Actions cron job.
     """
     from scanner.market_scanner import scan_all
-    from bot.telegram_bot import send_signal_alert, send_daily_digest
-    from bot.formatter import format_signal
+    from bot.telegram_bot import send_signal_alert, check_new_subscribers
+
+    # Auto-register any new /start users before sending
+    new = check_new_subscribers()
+    if new > 0:
+        print(f"\n{new} new subscriber(s) registered!")
 
     results = scan_all()
     signals = results["signals"]
@@ -209,6 +225,102 @@ def cmd_check_signals():
             print(f"  Sent: {signal['direction']} {signal['name']}")
     else:
         print("\nNo signals at this time.")
+
+
+def cmd_list_subscribers():
+    """List all subscribers."""
+    from bot.telegram_bot import list_subscribers, check_new_subscribers
+    check_new_subscribers()
+    list_subscribers()
+
+
+def cmd_add_user(chat_id):
+    """Manually add a user by chat ID."""
+    from bot.telegram_bot import add_subscriber
+    added = add_subscriber(chat_id, name="Manual")
+    if added:
+        print(f"User {chat_id} added successfully!")
+    else:
+        print(f"User {chat_id} already exists.")
+
+
+def cmd_add_channel(channel):
+    """Add a Telegram channel."""
+    if not channel.startswith("@"):
+        channel = f"@{channel}"
+    from bot.telegram_bot import add_subscriber
+    added = add_subscriber(channel, name=f"Channel {channel}")
+    if added:
+        print(f"Channel {channel} added!")
+        print(f"IMPORTANT: Make the bot an admin of {channel} first!")
+    else:
+        print(f"Channel {channel} already exists.")
+
+
+def cmd_manage_subscribers():
+    """Interactive subscriber management."""
+    from bot.telegram_bot import (
+        list_subscribers, check_new_subscribers, add_subscriber,
+        remove_subscriber, get_all_recipients, send_message_sync
+    )
+
+    while True:
+        print("\n" + "-" * 40)
+        print("  SUBSCRIBER MANAGEMENT")
+        print("-" * 40)
+        print("  1. List all subscribers")
+        print("  2. Check for new /start users")
+        print("  3. Add user manually (chat ID)")
+        print("  4. Add Telegram channel")
+        print("  5. Remove subscriber")
+        print("  6. Send test to all")
+        print("  0. Back to main menu")
+        print("-" * 40)
+
+        choice = input("\nSelect: ").strip()
+
+        if choice == "1":
+            list_subscribers()
+
+        elif choice == "2":
+            new = check_new_subscribers()
+            print(f"{new} new subscriber(s) found.")
+            list_subscribers()
+
+        elif choice == "3":
+            chat_id = input("Enter chat ID: ").strip()
+            name = input("Enter name (optional): ").strip()
+            added = add_subscriber(chat_id, name)
+            print(f"{'Added!' if added else 'Already exists.'}")
+
+        elif choice == "4":
+            channel = input("Enter channel username (@...): ").strip()
+            if not channel.startswith("@"):
+                channel = f"@{channel}"
+            added = add_subscriber(channel, f"Channel {channel}")
+            if added:
+                print(f"Channel {channel} added!")
+                print("Make sure the bot is an ADMIN of this channel!")
+            else:
+                print("Already exists.")
+
+        elif choice == "5":
+            chat_id = input("Enter chat ID or @channel to remove: ").strip()
+            removed = remove_subscriber(chat_id)
+            print(f"{'Removed!' if removed else 'Not found.'}")
+
+        elif choice == "6":
+            recipients = get_all_recipients()
+            print(f"Sending test to {len(recipients)} recipient(s)...")
+            send_message_sync(
+                "TEST: MT5 Trading Signals\n"
+                "==========================\n"
+                "You are subscribed to futures signals.\n"
+                f"Total subscribers: {len(recipients)}"
+            )
+
+        elif choice == "0":
+            break
 
 
 def _print_signals(signals):
