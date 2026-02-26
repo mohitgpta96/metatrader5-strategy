@@ -46,6 +46,13 @@ SL_ATR_MULTIPLIER = 1.5
 TP1_ATR_MULTIPLIER = 2.0  # R:R = 1:1.33
 TP2_ATR_MULTIPLIER = 3.0  # R:R = 1:2.00
 
+# --- Signal Quality Filters ---
+ADX_PERIOD = 14
+ADX_MIN_THRESHOLD = 20       # Only trade when trend exists (ADX > 20)
+VOLUME_MA_PERIOD = 20        # 20-period moving average of volume
+VOLUME_MIN_RATIO = 0.8       # Volume must be >= 0.8x the 20-period average
+MIN_SIGNAL_SCORE = 6         # Only send signals with score >= 6 (out of 10)
+
 # --- Timeframes ---
 PRIMARY_TIMEFRAME = "1h"      # Signal generation
 CONFIRMATION_TIMEFRAME = "4h"  # Trend confirmation (used for Gold/Silver only)

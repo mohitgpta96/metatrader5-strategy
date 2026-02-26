@@ -1,17 +1,17 @@
 """
 Technical indicator calculations using the 'ta' library.
-Calculates EMA, RSI, ATR for the Triple Confirmation strategy.
+Calculates EMA, RSI, ATR, ADX, Volume MA for signal generation.
 """
 import sys
 from pathlib import Path
 
 import pandas as pd
-from ta.trend import EMAIndicator
+from ta.trend import EMAIndicator, ADXIndicator
 from ta.momentum import RSIIndicator
 from ta.volatility import AverageTrueRange
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from config.settings import EMA_FAST, EMA_SLOW, RSI_PERIOD, ATR_PERIOD
+from config.settings import EMA_FAST, EMA_SLOW, RSI_PERIOD, ATR_PERIOD, ADX_PERIOD, VOLUME_MA_PERIOD
 
 
 def add_indicators(df):
@@ -62,6 +62,17 @@ def add_indicators(df):
     # ATR (Average True Range)
     df[f"ATR_{ATR_PERIOD}"] = AverageTrueRange(high=high, low=low, close=close, window=ATR_PERIOD).average_true_range()
 
+    # ADX (Average Directional Index) - Trend Strength
+    adx_indicator = ADXIndicator(high=high, low=low, close=close, window=ADX_PERIOD)
+    df[f"ADX_{ADX_PERIOD}"] = adx_indicator.adx()
+
+    # Volume Moving Average
+    if "Volume" in df.columns:
+        df[f"Vol_MA_{VOLUME_MA_PERIOD}"] = df["Volume"].rolling(window=VOLUME_MA_PERIOD).mean()
+        df["Vol_Ratio"] = df["Volume"] / df[f"Vol_MA_{VOLUME_MA_PERIOD}"]
+    else:
+        df["Vol_Ratio"] = 1.0  # Default if no volume data
+
     # Trend determination
     ema_fast_col = f"EMA_{EMA_FAST}"
     ema_slow_col = f"EMA_{EMA_SLOW}"
@@ -95,6 +106,7 @@ def get_current_indicators(df):
     ema_slow_col = f"EMA_{EMA_SLOW}"
     rsi_col = f"RSI_{RSI_PERIOD}"
     atr_col = f"ATR_{ATR_PERIOD}"
+    adx_col = f"ADX_{ADX_PERIOD}"
 
     result = {
         "close": latest["Close"],
@@ -105,6 +117,8 @@ def get_current_indicators(df):
         "ema_slow": latest.get(ema_slow_col),
         "rsi": latest.get(rsi_col),
         "atr": latest.get(atr_col),
+        "adx": latest.get(adx_col),
+        "vol_ratio": latest.get("Vol_Ratio", 1.0),
         "trend": int(latest.get("Trend", 0)),
         "ema_cross": int(latest.get("EMA_Cross", 0)),
         "prev_trend": int(prev.get("Trend", 0)),

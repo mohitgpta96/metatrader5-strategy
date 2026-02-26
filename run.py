@@ -110,7 +110,7 @@ def cmd_scan_all():
 def cmd_scan_commodities():
     """Commodities only scan."""
     from scanner.market_scanner import scan_commodities
-    signals, statuses = scan_commodities()
+    signals, statuses, _ = scan_commodities()
     _print_signals(signals)
 
 
@@ -142,12 +142,12 @@ def cmd_backtest():
     from backtest.engine import backtest_strategy, print_results
 
     instruments = [
-        ("GC=F", "Gold", "1y", "1d"),
-        ("SI=F", "Silver", "1y", "1d"),
-        ("RELIANCE.NS", "Reliance", "1y", "1d"),
-        ("TCS.NS", "TCS", "1y", "1d"),
-        ("HDFCBANK.NS", "HDFC Bank", "1y", "1d"),
-        ("INFY.NS", "Infosys", "1y", "1d"),
+        ("GC=F", "Gold", "2y", "1d"),
+        ("SI=F", "Silver", "2y", "1d"),
+        ("RELIANCE.NS", "Reliance", "2y", "1d"),
+        ("TCS.NS", "TCS", "2y", "1d"),
+        ("HDFCBANK.NS", "HDFC Bank", "2y", "1d"),
+        ("INFY.NS", "Infosys", "2y", "1d"),
     ]
 
     all_results = []

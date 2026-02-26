@@ -15,6 +15,7 @@ from config.settings import (
     RSI_BUY_MIN, RSI_BUY_MAX, RSI_SELL_MIN, RSI_SELL_MAX,
     SL_ATR_MULTIPLIER, TP1_ATR_MULTIPLIER, TP2_ATR_MULTIPLIER,
     RISK_PERCENT,
+    ADX_MIN_THRESHOLD, VOLUME_MIN_RATIO, MIN_SIGNAL_SCORE,
 )
 from config.instruments import get_display_name
 
@@ -44,6 +45,7 @@ def backtest_strategy(df, ticker="", initial_balance=10000, risk_percent=None):
     ema_slow_col = f"EMA_{EMA_SLOW}"
     rsi_col = f"RSI_{RSI_PERIOD}"
     atr_col = f"ATR_{ATR_PERIOD}"
+    adx_col = f"ADX_{ATR_PERIOD}"
 
     df = df.dropna(subset=[ema_slow_col, rsi_col, atr_col])
     if len(df) < 10:
@@ -122,19 +124,34 @@ def backtest_strategy(df, ticker="", initial_balance=10000, risk_percent=None):
             rsi = row[rsi_col]
             atr = row[atr_col]
             close = row["Close"]
+            adx = row.get(adx_col)
+            vol_ratio = row.get("Vol_Ratio", 1.0)
+            trend = row.get("Trend", 0)
+
+            # --- FILTER 1: ADX Trend Strength ---
+            if adx is not None and not pd.isna(adx) and adx < ADX_MIN_THRESHOLD:
+                equity_curve.append(balance)
+                if balance > max_balance:
+                    max_balance = balance
+                dd = (max_balance - balance) / max_balance * 100
+                if dd > max_drawdown:
+                    max_drawdown = dd
+                continue
 
             direction = None
+            signal_type = None
 
             # Signal Type 1: EMA Crossover
             if ema_cross == 1 and RSI_BUY_MIN <= rsi <= RSI_BUY_MAX:
                 direction = "BUY"
+                signal_type = "EMA Crossover"
             elif ema_cross == -1 and RSI_SELL_MIN <= rsi <= RSI_SELL_MAX:
                 direction = "SELL"
+                signal_type = "EMA Crossover"
 
             # Signal Type 2: Trend Pullback (more signals in trending markets)
             if direction is None and i >= 3:
                 ema_fast_col = f"EMA_{EMA_FAST}"
-                trend = row.get("Trend", 0)
                 ema_fast_val = row.get(ema_fast_col, 0)
 
                 distance_to_ema = abs(close - ema_fast_val)
@@ -145,12 +162,33 @@ def backtest_strategy(df, ticker="", initial_balance=10000, risk_percent=None):
                 if trend == 1 and near_ema and 35 <= rsi <= 55:
                     if prev_candle["Low"] <= ema_fast_val * 1.003 and close > prev_candle["Close"]:
                         direction = "BUY"
+                        signal_type = "Pullback Buy"
 
                 elif trend == -1 and near_ema and 45 <= rsi <= 65:
                     if prev_candle["High"] >= ema_fast_val * 0.997 and close < prev_candle["Close"]:
                         direction = "SELL"
+                        signal_type = "Pullback Sell"
 
             if direction and atr > 0:
+                # --- FILTER 2: Signal Scoring ---
+                score = _calculate_backtest_score(
+                    direction=direction,
+                    signal_type=signal_type,
+                    adx=adx,
+                    rsi=rsi,
+                    vol_ratio=vol_ratio,
+                    trend=trend,
+                )
+
+                if score < MIN_SIGNAL_SCORE:
+                    equity_curve.append(balance)
+                    if balance > max_balance:
+                        max_balance = balance
+                    dd = (max_balance - balance) / max_balance * 100
+                    if dd > max_drawdown:
+                        max_drawdown = dd
+                    continue
+
                 risk_amount = balance * (risk_pct / 100.0)
                 sl_distance = SL_ATR_MULTIPLIER * atr
 
@@ -168,12 +206,16 @@ def backtest_strategy(df, ticker="", initial_balance=10000, risk_percent=None):
 
                 current_trade = {
                     "direction": direction,
+                    "signal_type": signal_type,
+                    "signal_score": score,
                     "entry": close,
                     "stop_loss": sl,
                     "tp1": tp1,
                     "tp2": tp2,
                     "atr": atr,
                     "rsi": rsi,
+                    "adx": adx,
+                    "vol_ratio": vol_ratio,
                     "position_multiplier": position_multiplier,
                     "risk_amount": risk_amount,
                     "entry_date": df.index[i],
@@ -262,6 +304,57 @@ def backtest_strategy(df, ticker="", initial_balance=10000, risk_percent=None):
         "equity_curve": equity_curve,
         "trades": trades,
     }
+
+
+def _calculate_backtest_score(direction, signal_type, adx, rsi, vol_ratio, trend):
+    """
+    Calculate signal quality score (1-10) for backtest.
+    Mirrors the scoring in strategy/signals.py.
+    """
+    score = 0
+
+    # ADX Strength (0-3 points)
+    if adx is not None and not pd.isna(adx):
+        if adx >= 40:
+            score += 3
+        elif adx >= 30:
+            score += 2
+        elif adx >= 25:
+            score += 1
+
+    # Volume Confirmation (0-2 points)
+    if vol_ratio is not None and not pd.isna(vol_ratio):
+        if vol_ratio >= 1.5:
+            score += 2
+        elif vol_ratio >= VOLUME_MIN_RATIO:
+            score += 1
+
+    # RSI Position (0-2 points)
+    if rsi is not None and not pd.isna(rsi):
+        if direction == "BUY":
+            if 45 <= rsi <= 60:
+                score += 2
+            elif 40 <= rsi <= 70:
+                score += 1
+        elif direction == "SELL":
+            if 40 <= rsi <= 55:
+                score += 2
+            elif 30 <= rsi <= 65:
+                score += 1
+
+    # Trend Alignment (0-2 points) - backtest uses single timeframe
+    if direction == "BUY" and trend == 1:
+        score += 2
+    elif direction == "SELL" and trend == -1:
+        score += 2
+    elif (direction == "BUY" and trend >= 0) or (direction == "SELL" and trend <= 0):
+        score += 1
+
+    # Signal Type Bonus (0-1 point)
+    if signal_type == "EMA Crossover":
+        score += 1
+
+    return min(10, score)
 
 
 def print_results(results):
