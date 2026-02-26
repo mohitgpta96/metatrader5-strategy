@@ -367,24 +367,19 @@ def cmd_track_signals():
 
 
 def cmd_weekly_report():
-    """Generate and optionally send 7-day report."""
+    """Generate 7-day report (internal only, NOT sent to Telegram)."""
     from tracker.weekly_report import generate_weekly_report
     from tracker.signal_logger import archive_resolved
-    from bot.telegram_bot import send_message_sync
 
     print("Generating 7-day performance report...\n")
     report, data = generate_weekly_report()
     print(report)
 
+    # Archive resolved signals
     if data.get("total", 0) > 0:
-        print("\nSending report to Telegram...")
-        send_message_sync(report)
-        print("Report sent!")
-
-        # Archive resolved signals
         archived = archive_resolved()
         if archived > 0:
-            print(f"Archived {archived} resolved signal(s).")
+            print(f"\nArchived {archived} resolved signal(s).")
 
 
 def cmd_tracker_status():

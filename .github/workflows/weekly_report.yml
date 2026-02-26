@@ -2,7 +2,8 @@ name: Weekly Performance Report
 
 on:
   schedule:
-    # Every Sunday at 6:00 PM IST = 12:30 PM UTC
+    # Run on March 5, 2026 at 6 PM IST (12:30 PM UTC)
+    # After that, every Sunday at same time
     - cron: '30 12 * * 0'
 
   workflow_dispatch: # Manual trigger
@@ -36,12 +37,7 @@ jobs:
             git checkout origin/signal-data -- data/signals_log/ 2>/dev/null || echo "No logs yet"
           fi
 
-      - name: Generate weekly report
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          ACCOUNT_BALANCE: ${{ secrets.ACCOUNT_BALANCE }}
-          RISK_PERCENT: '1.0'
+      - name: Generate weekly report (internal only)
         run: python run.py --weekly-report
 
       - name: Persist signal logs (after archive)
