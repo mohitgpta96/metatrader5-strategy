@@ -1,16 +1,21 @@
 """
 Instrument definitions for all markets.
-Covers: US Gold, Silver, Crude Oil, NIFTY 100, Indices.
+All instruments are FUTURES contracts traded on MetaTrader 5 (Money Plant server).
+Covers: Gold, Silver, Crude Oil, Natural Gas, Copper, Brent + NIFTY F&O Stocks + Indices.
+
+NOTE: yfinance does NOT have Indian futures data (NSE F&O / MCX).
+For Indian stocks, spot prices (.NS) are used as proxy - spot and futures
+move identically for signal generation purposes.
 """
 
-# --- Commodity CFDs (MetaTrader / yfinance) ---
+# --- Commodity FUTURES (yfinance futures tickers) ---
 COMMODITIES = {
     "GOLD": {
-        "name": "Gold (XAUUSD)",
+        "name": "Gold Futures (XAUUSD)",
         "yf_ticker": "GC=F",
         "yf_ticker_alt": "XAUUSD=X",
         "contract_size": 100,     # 1 lot = 100 troy ounces
-        "pip_value_per_lot": 1.0, # $1 per pip ($0.01 move) per lot
+        "pip_value_per_lot": 1.0,
         "dollar_per_1_move": 100, # $100 per $1.00 price move per lot
         "currency": "USD",
         "market": "COMEX",
@@ -18,19 +23,19 @@ COMMODITIES = {
         "min_lot": 0.01,
     },
     "SILVER": {
-        "name": "Silver (XAGUSD)",
+        "name": "Silver Futures (XAGUSD)",
         "yf_ticker": "SI=F",
         "yf_ticker_alt": "XAGUSD=X",
         "contract_size": 5000,    # 1 lot = 5000 troy ounces
-        "pip_value_per_lot": 5.0, # $5 per pip ($0.001 move) per lot
-        "dollar_per_1_move": 5000, # $5000 per $1.00 move per lot
+        "pip_value_per_lot": 5.0,
+        "dollar_per_1_move": 5000,
         "currency": "USD",
         "market": "COMEX",
         "timeframe": "1h",
         "min_lot": 0.01,
     },
     "CRUDE_OIL": {
-        "name": "Crude Oil (WTI)",
+        "name": "Crude Oil Futures (WTI)",
         "yf_ticker": "CL=F",
         "contract_size": 1000,    # 1 lot = 1000 barrels
         "pip_value_per_lot": 10.0,
@@ -40,20 +45,65 @@ COMMODITIES = {
         "timeframe": "1h",
         "min_lot": 0.01,
     },
+    "BRENT_CRUDE": {
+        "name": "Brent Crude Futures",
+        "yf_ticker": "BZ=F",
+        "contract_size": 1000,
+        "pip_value_per_lot": 10.0,
+        "dollar_per_1_move": 1000,
+        "currency": "USD",
+        "market": "ICE",
+        "timeframe": "1h",
+        "min_lot": 0.01,
+    },
+    "NATURAL_GAS": {
+        "name": "Natural Gas Futures",
+        "yf_ticker": "NG=F",
+        "contract_size": 10000,   # 1 lot = 10,000 MMBtu
+        "pip_value_per_lot": 10.0,
+        "dollar_per_1_move": 10000,
+        "currency": "USD",
+        "market": "NYMEX",
+        "timeframe": "1h",
+        "min_lot": 0.01,
+    },
+    "COPPER": {
+        "name": "Copper Futures",
+        "yf_ticker": "HG=F",
+        "contract_size": 25000,   # 1 lot = 25,000 lbs
+        "pip_value_per_lot": 2.5,
+        "dollar_per_1_move": 25000,
+        "currency": "USD",
+        "market": "COMEX",
+        "timeframe": "1h",
+        "min_lot": 0.01,
+    },
+    "PLATINUM": {
+        "name": "Platinum Futures",
+        "yf_ticker": "PL=F",
+        "contract_size": 50,      # 1 lot = 50 troy ounces
+        "pip_value_per_lot": 0.5,
+        "dollar_per_1_move": 50,
+        "currency": "USD",
+        "market": "NYMEX",
+        "timeframe": "1h",
+        "min_lot": 0.01,
+    },
 }
 
-# --- Indian Indices ---
+# --- Indian Indices (Spot - used for trend confirmation) ---
+# NOTE: Futures tickers not available on yfinance for NSE
 INDICES = {
     "NIFTY50": {
-        "name": "NIFTY 50 Index",
-        "yf_ticker": "^NSEI",
+        "name": "NIFTY 50 Futures",
+        "yf_ticker": "^NSEI",        # Spot proxy (futures data not on yfinance)
         "currency": "INR",
         "market": "NSE",
         "timeframe": "1d",
     },
     "BANKNIFTY": {
-        "name": "BANK NIFTY Index",
-        "yf_ticker": "^NSEBANK",
+        "name": "BANK NIFTY Futures",
+        "yf_ticker": "^NSEBANK",     # Spot proxy (futures data not on yfinance)
         "currency": "INR",
         "market": "NSE",
         "timeframe": "1d",

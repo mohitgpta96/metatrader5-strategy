@@ -21,7 +21,7 @@ def generate_digest():
 
     # --- Commodities ---
     lines.append("")
-    lines.append("COMMODITIES")
+    lines.append("COMMODITY FUTURES")
     lines.append("-" * 30)
     for status in results["commodity_statuses"]:
         emoji = _condition_emoji(status["condition"])
@@ -37,7 +37,7 @@ def generate_digest():
 
     # --- Indices ---
     lines.append("")
-    lines.append("INDIAN INDICES")
+    lines.append("INDEX FUTURES")
     lines.append("-" * 30)
     for status in results["index_statuses"]:
         emoji = _condition_emoji(status["condition"])
@@ -49,7 +49,7 @@ def generate_digest():
     sell_signals = [s for s in results["stock_signals"] if s["direction"] == "SELL"]
 
     lines.append("")
-    lines.append(f"NIFTY 100 STOCKS ({len(buy_signals)} BUY, {len(sell_signals)} SELL)")
+    lines.append(f"STOCK FUTURES ({len(buy_signals)} BUY, {len(sell_signals)} SELL)")
     lines.append("-" * 30)
 
     if buy_signals:

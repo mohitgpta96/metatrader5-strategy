@@ -15,8 +15,16 @@ def format_signal(signal):
     tp1_diff = abs(signal["tp1"] - signal["entry"])
     tp2_diff = abs(signal["tp2"] - signal["entry"])
 
+    # Add FUTURES label
+    name = signal['name']
+    if is_commodity:
+        # Already has "Futures" in name from instruments.py
+        pass
+    elif signal["type"] == "stock":
+        name = f"{name} FUT"  # Label stock signals as futures
+
     lines = [
-        f"{direction_label} SIGNAL -- {signal['name']}",
+        f"{direction_label} SIGNAL -- {name}",
         "=" * 35,
         f"Entry:     {currency}{signal['entry']:,.2f}",
         f"Stop Loss: {currency}{signal['stop_loss']:,.2f} (-{currency}{sl_diff:,.2f})",

@@ -18,7 +18,7 @@ from config.instruments import (
 
 def scan_commodities():
     """Scan Gold, Silver, Crude Oil for signals."""
-    print("\n--- Scanning Commodities ---")
+    print("\n--- Scanning Commodity Futures ---")
     signals = []
     statuses = []
 
@@ -74,7 +74,7 @@ def scan_indices():
 def scan_stocks(tickers=None):
     """Scan NIFTY 100 stocks for signals."""
     tickers = tickers or ALL_STOCK_TICKERS
-    print(f"\n--- Scanning {len(tickers)} Stocks ---")
+    print(f"\n--- Scanning {len(tickers)} Stock Futures ---")
     signals = []
     statuses = []
 
@@ -111,7 +111,7 @@ def scan_all():
     Returns all signals and statuses.
     """
     print("=" * 60)
-    print("MULTI-MARKET SCAN")
+    print("MULTI-MARKET FUTURES SCAN")
     print("=" * 60)
 
     # Commodities
@@ -129,8 +129,8 @@ def scan_all():
     print(f"\n{'=' * 60}")
     print(f"SCAN COMPLETE")
     print(f"  Total Signals: {len(all_signals)}")
-    print(f"  - Commodity: {len(commodity_signals)}")
-    print(f"  - Stocks: {len(stock_signals)}")
+    print(f"  - Commodity Futures: {len(commodity_signals)}")
+    print(f"  - Stock Futures: {len(stock_signals)}")
     print(f"{'=' * 60}")
 
     return {
