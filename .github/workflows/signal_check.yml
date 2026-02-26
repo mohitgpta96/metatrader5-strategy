@@ -47,6 +47,7 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_RECIPIENTS: ${{ secrets.TELEGRAM_RECIPIENTS }}
           ACCOUNT_BALANCE: ${{ secrets.ACCOUNT_BALANCE }}
           RISK_PERCENT: '1.0'
         run: python run.py --check-signals
