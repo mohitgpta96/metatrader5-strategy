@@ -1,0 +1,35 @@
+name: Market Signal Scanner
+
+on:
+  schedule:
+    # Run every hour during trading hours (UTC times)
+    # Gold market: Sun 10PM UTC - Fri 10PM UTC (nearly 24/5)
+    # NSE: Mon-Fri 3:45 AM - 10:00 AM UTC (9:15 AM - 3:30 PM IST)
+    # Using :33 offset to avoid GitHub Actions peak load delays
+    - cron: '33 * * * 1-5'    # Every hour Mon-Fri
+    - cron: '33 22-23 * * 0'  # Sunday evening (Gold market open)
+  workflow_dispatch: # Manual trigger
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run signal check
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          ACCOUNT_BALANCE: ${{ secrets.ACCOUNT_BALANCE }}
+          RISK_PERCENT: '1.0'
+        run: python run.py --check-signals

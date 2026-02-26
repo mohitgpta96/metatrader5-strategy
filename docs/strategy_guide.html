@@ -1,0 +1,1402 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Triple Confirmation Strategy Guide | MetaTrader 5</title>
+<style>
+/* ===== RESET & BASE ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg-primary: #0d1117;
+  --bg-secondary: #161b22;
+  --bg-tertiary: #21262d;
+  --bg-card: #1c2128;
+  --border: #30363d;
+  --text-primary: #e6edf3;
+  --text-secondary: #8b949e;
+  --text-muted: #6e7681;
+  --accent-blue: #58a6ff;
+  --accent-green: #3fb950;
+  --accent-green-dim: #1a3a2a;
+  --accent-red: #f85149;
+  --accent-red-dim: #3d1a1a;
+  --accent-orange: #d29922;
+  --accent-orange-dim: #3d2e0a;
+  --accent-purple: #bc8cff;
+  --accent-yellow: #e3b341;
+  --gold-color: #ffd700;
+  --shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+html { scroll-behavior: smooth; font-size: 16px; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.7;
+  min-height: 100vh;
+}
+
+/* ===== HEADER ===== */
+.header {
+  background: linear-gradient(135deg, #0d1117 0%, #161b22 50%, #1a1f2b 100%);
+  border-bottom: 1px solid var(--border);
+  padding: 2rem 1rem;
+  text-align: center;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header h1 {
+  font-size: 1.6rem;
+  font-weight: 700;
+  background: linear-gradient(90deg, var(--gold-color), var(--accent-orange), var(--gold-color));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: 0.5px;
+}
+
+.header .subtitle {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  margin-top: 0.3rem;
+}
+
+.header .badge-row {
+  margin-top: 0.75rem;
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.badge-gold { background: rgba(255,215,0,0.15); color: var(--gold-color); border: 1px solid rgba(255,215,0,0.3); }
+.badge-blue { background: rgba(88,166,255,0.15); color: var(--accent-blue); border: 1px solid rgba(88,166,255,0.3); }
+.badge-green { background: rgba(63,185,80,0.15); color: var(--accent-green); border: 1px solid rgba(63,185,80,0.3); }
+
+/* ===== NAV ===== */
+.nav {
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  padding: 0.5rem 1rem;
+  overflow-x: auto;
+  white-space: nowrap;
+  -webkit-overflow-scrolling: touch;
+}
+
+.nav::-webkit-scrollbar { height: 3px; }
+.nav::-webkit-scrollbar-track { background: transparent; }
+.nav::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+.nav a {
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 0.75rem;
+  padding: 0.4rem 0.7rem;
+  border-radius: 6px;
+  display: inline-block;
+  transition: all 0.2s;
+}
+
+.nav a:hover, .nav a:focus {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
+
+/* ===== MAIN CONTENT ===== */
+.container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+/* ===== SECTIONS ===== */
+.section {
+  margin-bottom: 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--bg-secondary);
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.2rem;
+  cursor: pointer;
+  user-select: none;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid transparent;
+  transition: background 0.2s;
+}
+
+.section-header:hover { background: var(--bg-tertiary); }
+
+.section-header h2 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.section-header .icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+.icon-blue { background: rgba(88,166,255,0.15); color: var(--accent-blue); }
+.icon-green { background: rgba(63,185,80,0.15); color: var(--accent-green); }
+.icon-red { background: rgba(248,81,73,0.15); color: var(--accent-red); }
+.icon-orange { background: rgba(210,153,34,0.15); color: var(--accent-orange); }
+.icon-purple { background: rgba(188,140,255,0.15); color: var(--accent-purple); }
+.icon-gold { background: rgba(255,215,0,0.15); color: var(--gold-color); }
+
+.chevron {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  transition: transform 0.3s ease;
+  flex-shrink: 0;
+}
+
+.section.open .chevron { transform: rotate(180deg); }
+.section.open .section-header { border-bottom-color: var(--border); }
+
+.section-body {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.4s ease;
+}
+
+.section.open .section-body { max-height: 5000px; }
+
+.section-content { padding: 1.2rem; }
+
+/* ===== TYPOGRAPHY ===== */
+h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 1.2rem 0 0.6rem 0;
+  color: var(--text-primary);
+}
+
+h3:first-child { margin-top: 0; }
+
+p { margin-bottom: 0.8rem; color: var(--text-secondary); font-size: 0.9rem; }
+
+strong { color: var(--text-primary); }
+
+/* ===== SIGNAL CARDS ===== */
+.signal-card {
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  border: 1px solid;
+}
+
+.signal-buy {
+  background: var(--accent-green-dim);
+  border-color: rgba(63,185,80,0.3);
+}
+
+.signal-sell {
+  background: var(--accent-red-dim);
+  border-color: rgba(248,81,73,0.3);
+}
+
+.signal-card .signal-title {
+  font-weight: 700;
+  font-size: 0.9rem;
+  margin-bottom: 0.6rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.signal-buy .signal-title { color: var(--accent-green); }
+.signal-sell .signal-title { color: var(--accent-red); }
+
+.signal-card ul {
+  list-style: none;
+  padding: 0;
+}
+
+.signal-card li {
+  position: relative;
+  padding-left: 1.4rem;
+  margin-bottom: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.signal-card li::before {
+  content: "\2713";
+  position: absolute;
+  left: 0;
+  font-weight: 700;
+}
+
+.signal-buy li::before { color: var(--accent-green); }
+.signal-sell li::before { color: var(--accent-red); }
+
+/* ===== SL/TP BOX ===== */
+.sltp-box {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 0.8rem 0;
+}
+
+.sltp-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+}
+
+.sltp-item {
+  background: var(--bg-primary);
+  border-radius: 6px;
+  padding: 0.6rem 0.8rem;
+  text-align: center;
+}
+
+.sltp-label {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sltp-value {
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin-top: 0.2rem;
+}
+
+.sltp-value.red { color: var(--accent-red); }
+.sltp-value.green { color: var(--accent-green); }
+.sltp-value.blue { color: var(--accent-blue); }
+
+/* ===== WARNING BOX ===== */
+.warning-box {
+  background: var(--accent-orange-dim);
+  border: 1px solid rgba(210,153,34,0.4);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 0.8rem 0;
+}
+
+.warning-box .warning-title {
+  color: var(--accent-orange);
+  font-weight: 700;
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+}
+
+.danger-box {
+  background: var(--accent-red-dim);
+  border: 1px solid rgba(248,81,73,0.4);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 0.8rem 0;
+}
+
+.danger-box .danger-title {
+  color: var(--accent-red);
+  font-weight: 700;
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+}
+
+.danger-box p, .warning-box p { margin-bottom: 0.4rem; font-size: 0.85rem; }
+
+/* ===== INFO BOX ===== */
+.info-box {
+  background: rgba(88,166,255,0.08);
+  border: 1px solid rgba(88,166,255,0.25);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 0.8rem 0;
+}
+
+.info-box .info-title {
+  color: var(--accent-blue);
+  font-weight: 700;
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+}
+
+.info-box p { margin-bottom: 0.4rem; font-size: 0.85rem; }
+
+/* ===== TABLES ===== */
+.table-wrapper {
+  overflow-x: auto;
+  margin: 0.8rem 0;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+thead { background: var(--bg-tertiary); }
+
+th {
+  padding: 0.6rem 0.8rem;
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+td {
+  padding: 0.5rem 0.8rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(88,166,255,0.04); }
+
+/* ===== CHECKLIST ===== */
+.checklist {
+  list-style: none;
+  padding: 0;
+}
+
+.checklist li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  padding: 0.7rem 0.8rem;
+  margin-bottom: 0.4rem;
+  background: var(--bg-tertiary);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.checklist li .check-icon {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border);
+  border-radius: 4px;
+  flex-shrink: 0;
+  margin-top: 1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  color: transparent;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.checklist li.checked .check-icon {
+  background: var(--accent-green);
+  border-color: var(--accent-green);
+  color: white;
+}
+
+.checklist li.checked { opacity: 0.6; }
+
+/* ===== FORMULA BOX ===== */
+.formula-box {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 0.8rem 0;
+  font-family: 'SF Mono', 'Fira Code', 'Courier New', monospace;
+  font-size: 0.85rem;
+  line-height: 1.8;
+  overflow-x: auto;
+  color: var(--accent-yellow);
+}
+
+.formula-box .comment { color: var(--text-muted); font-style: italic; }
+.formula-box .keyword { color: var(--accent-purple); }
+.formula-box .value { color: var(--accent-green); }
+
+/* ===== RULE LIST ===== */
+.rule-list {
+  list-style: none;
+  padding: 0;
+}
+
+.rule-list li {
+  position: relative;
+  padding: 0.6rem 0 0.6rem 1.8rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  border-bottom: 1px solid rgba(48,54,61,0.5);
+  line-height: 1.6;
+}
+
+.rule-list li:last-child { border-bottom: none; }
+
+.rule-list li::before {
+  content: attr(data-num);
+  position: absolute;
+  left: 0;
+  width: 22px;
+  height: 22px;
+  background: var(--bg-tertiary);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--accent-blue);
+  top: 0.6rem;
+}
+
+/* ===== NEVER-DO LIST ===== */
+.never-list {
+  list-style: none;
+  padding: 0;
+}
+
+.never-list li {
+  padding: 0.5rem 0 0.5rem 1.6rem;
+  position: relative;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.never-list li::before {
+  content: "\2717";
+  position: absolute;
+  left: 0;
+  color: var(--accent-red);
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+/* ===== MARKET HOURS CARDS ===== */
+.hours-card {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 0.8rem;
+}
+
+.hours-card .hours-title {
+  font-weight: 700;
+  font-size: 0.9rem;
+  margin-bottom: 0.4rem;
+}
+
+.hours-card .hours-time {
+  font-size: 0.85rem;
+  color: var(--accent-blue);
+  font-weight: 600;
+}
+
+.hours-card .hours-note {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 0.3rem;
+}
+
+/* ===== TARGET CARDS ===== */
+.target-card {
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 0.8rem;
+  border-left: 3px solid;
+}
+
+.target-card.conservative { border-left-color: var(--accent-green); }
+.target-card.growth { border-left-color: var(--accent-blue); }
+
+.target-card .target-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.target-card .target-amount {
+  font-size: 1.4rem;
+  font-weight: 800;
+  margin: 0.3rem 0;
+}
+
+.target-card.conservative .target-amount { color: var(--accent-green); }
+.target-card.growth .target-amount { color: var(--accent-blue); }
+
+/* ===== INDICATOR PILLS ===== */
+.indicator-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 0.8rem 0;
+}
+
+.indicator-pill {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.indicator-pill .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.dot-blue { background: var(--accent-blue); }
+.dot-purple { background: var(--accent-purple); }
+.dot-orange { background: var(--accent-orange); }
+
+/* ===== FOOTER ===== */
+.footer {
+  text-align: center;
+  padding: 2rem 1rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  border-top: 1px solid var(--border);
+  margin-top: 2rem;
+}
+
+/* ===== HIGHLIGHT TEXT ===== */
+.hl-green { color: var(--accent-green); font-weight: 600; }
+.hl-red { color: var(--accent-red); font-weight: 600; }
+.hl-orange { color: var(--accent-orange); font-weight: 600; }
+.hl-blue { color: var(--accent-blue); font-weight: 600; }
+.hl-gold { color: var(--gold-color); font-weight: 600; }
+.hl-purple { color: var(--accent-purple); font-weight: 600; }
+
+/* ===== DIVIDER ===== */
+.divider {
+  height: 1px;
+  background: var(--border);
+  margin: 1rem 0;
+}
+
+/* ===== PRINT STYLES ===== */
+@media print {
+  body { background: white; color: #1a1a1a; font-size: 11pt; }
+  .header { position: static; background: white; border-bottom: 2px solid #333; }
+  .header h1 { -webkit-text-fill-color: #333; background: none; color: #333; }
+  .header .subtitle { color: #666; }
+  .nav { display: none; }
+  .section { break-inside: avoid; border-color: #ccc; background: white; }
+  .section-body { max-height: none !important; overflow: visible !important; }
+  .section-header { background: #f5f5f5; }
+  .section-header h2 { color: #1a1a1a; }
+  .chevron { display: none; }
+  .section-content { padding: 0.8rem; }
+  .signal-buy { background: #f0fff0; border-color: #090; }
+  .signal-sell { background: #fff0f0; border-color: #c00; }
+  .warning-box { background: #fffbf0; border-color: #d90; }
+  .danger-box { background: #fff0f0; border-color: #c00; }
+  .info-box { background: #f0f8ff; border-color: #069; }
+  .sltp-box, .formula-box, .hours-card, .target-card, .checklist li { background: #f8f8f8; }
+  table { font-size: 9pt; }
+  th { background: #eee; }
+  td, th { border: 1px solid #ccc; }
+  .container { max-width: 100%; }
+  .hl-green { color: #090; }
+  .hl-red { color: #c00; }
+  .hl-orange { color: #d90; }
+  .hl-blue { color: #069; }
+  .badge { border: 1px solid #999; }
+  p, li { color: #333; }
+  .text-secondary { color: #666; }
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 480px) {
+  .header { padding: 1.2rem 0.8rem; }
+  .header h1 { font-size: 1.3rem; }
+  .section-header { padding: 0.8rem 1rem; }
+  .section-header h2 { font-size: 0.95rem; }
+  .section-content { padding: 1rem; }
+  .sltp-grid { grid-template-columns: 1fr 1fr; gap: 0.4rem; }
+  .formula-box { font-size: 0.75rem; padding: 0.8rem; }
+  table { font-size: 0.75rem; }
+  th, td { padding: 0.4rem 0.5rem; }
+}
+</style>
+</head>
+<body>
+
+<!-- ===== HEADER ===== -->
+<header class="header">
+  <h1>Triple Confirmation Strategy</h1>
+  <div class="subtitle">MetaTrader 5 | Money Plant Server | Gold, Silver, Indian Stocks</div>
+  <div class="badge-row">
+    <span class="badge badge-gold">EMA 20/50</span>
+    <span class="badge badge-blue">RSI 14</span>
+    <span class="badge badge-green">ATR 14</span>
+  </div>
+</header>
+
+<!-- ===== NAV ===== -->
+<nav class="nav" id="nav">
+  <a href="#overview">Overview</a>
+  <a href="#buy">BUY Rules</a>
+  <a href="#sell">SELL Rules</a>
+  <a href="#risk">Risk Mgmt</a>
+  <a href="#checklist">Checklist</a>
+  <a href="#gold-warning">Gold Warning</a>
+  <a href="#hours">Market Hours</a>
+  <a href="#targets">Targets</a>
+</nav>
+
+<!-- ===== MAIN ===== -->
+<main class="container">
+
+<!-- ==================== SECTION 1: OVERVIEW ==================== -->
+<section class="section open" id="overview">
+  <div class="section-header" onclick="toggleSection(this)">
+    <h2><span class="icon icon-blue">1</span> Strategy Overview</h2>
+    <span class="chevron">&#9660;</span>
+  </div>
+  <div class="section-body">
+    <div class="section-content">
+
+      <h3>Yeh Strategy Kya Hai?</h3>
+      <p>"Triple Confirmation" ka matlab hai ki hum <strong>3 alag indicators</strong> se confirm karte hain ki trade lena chahiye ya nahi. Jab tak teeno indicators green signal nahi dete, tab tak koi trade nahi lena hai. Isse false signals bahut kam ho jaate hain.</p>
+
+      <h3>3 Indicators</h3>
+      <div class="indicator-row">
+        <div class="indicator-pill"><span class="dot dot-blue"></span> EMA 20 / 50</div>
+        <div class="indicator-pill"><span class="dot dot-purple"></span> RSI 14</div>
+        <div class="indicator-pill"><span class="dot dot-orange"></span> ATR 14</div>
+      </div>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Indicator</th>
+              <th>Kya Karta Hai</th>
+              <th>Kaise Use Karna Hai</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="hl-blue">EMA 20</span></td>
+              <td>Short-term trend dikhata hai (20 candles ka average)</td>
+              <td>Price direction aur crossover ke liye</td>
+            </tr>
+            <tr>
+              <td><span class="hl-blue">EMA 50</span></td>
+              <td>Medium-term trend dikhata hai (50 candles ka average)</td>
+              <td>EMA 20 ke saath crossover dekhna</td>
+            </tr>
+            <tr>
+              <td><span class="hl-purple">RSI 14</span></td>
+              <td>Overbought/Oversold batata hai (0-100 scale)</td>
+              <td>Confirmation + extreme levels avoid karna</td>
+            </tr>
+            <tr>
+              <td><span class="hl-orange">ATR 14</span></td>
+              <td>Average volatility batata hai (kitna move hota hai)</td>
+              <td>Stop Loss aur Take Profit calculate karna</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>2 Signal Types</h3>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Naam</th>
+              <th>Kab Milta Hai</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="hl-blue">Type 1</span></td>
+              <td>EMA Crossover</td>
+              <td>Jab EMA 20 aur EMA 50 cross karte hain &mdash; naya trend start</td>
+            </tr>
+            <tr>
+              <td><span class="hl-purple">Type 2</span></td>
+              <td>Trend Pullback</td>
+              <td>Jab price existing trend mein EMA 20 tak wapas aata hai &mdash; re-entry</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="info-box">
+        <div class="info-title">Timeframes</div>
+        <p><strong>Primary chart:</strong> 1H (1 hour) candles par trade lete hain</p>
+        <p><strong>Confirmation:</strong> 4H (4 hour) chart se overall trend confirm karte hain</p>
+        <p>4H chart par EMA 20 > EMA 50 ho toh bullish trend hai, EMA 20 < EMA 50 ho toh bearish.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SECTION 2: BUY RULES ==================== -->
+<section class="section" id="buy">
+  <div class="section-header" onclick="toggleSection(this)">
+    <h2><span class="icon icon-green">2</span> BUY Signal Rules</h2>
+    <span class="chevron">&#9660;</span>
+  </div>
+  <div class="section-body">
+    <div class="section-content">
+
+      <p>BUY signal tab aata hai jab market <span class="hl-green">upar jaane wala</span> hota hai. Dono types mein <strong>teeno indicators</strong> ka confirmation zaroori hai.</p>
+
+      <!-- Type 1 -->
+      <div class="signal-card signal-buy">
+        <div class="signal-title">&#9650; Type 1: EMA Crossover BUY</div>
+        <ul>
+          <li><strong>EMA 20</strong> ne <strong>EMA 50</strong> ko neeche se upar cross kiya (Golden Cross)</li>
+          <li><strong>RSI</strong> value <strong>40 se 70</strong> ke beech ho (na oversold, na overbought)</li>
+          <li><strong>4H chart</strong> pe overall trend <strong>bullish</strong> ho (EMA 20 > EMA 50 on 4H)</li>
+        </ul>
+      </div>
+
+      <p><strong>Kab hota hai?</strong> Jab naya uptrend start hota hai. EMA 20 fast hai, EMA 50 slow. Jab fast wala slow ke upar jaata hai, matlab buyers control mein aa rahe hain.</p>
+
+      <!-- Type 2 -->
+      <div class="signal-card signal-buy">
+        <div class="signal-title">&#9650; Type 2: Trend Pullback BUY</div>
+        <ul>
+          <li>Price pehle se <strong>uptrend</strong> mein ho (EMA 20 already above EMA 50)</li>
+          <li>Price <strong>neeche aake EMA 20</strong> ko touch kare ya uske paas aaye (pullback)</li>
+          <li><strong>RSI</strong> value <strong>35 se 55</strong> ke beech ho (slightly oversold zone)</li>
+          <li>Price EMA 20 se <strong>bounce back</strong> kare (wapas upar jaane lage)</li>
+        </ul>
+      </div>
+
+      <p><strong>Kab hota hai?</strong> Uptrend mein price kabhi kabhi thoda neeche aata hai (pullback). EMA 20 support ki tarah kaam karta hai. Jab price wahin se bounce kare, toh entry milti hai. Yeh Type 1 se zyada reliable hota hai.</p>
+
+      <!-- SL/TP -->
+      <h3>Stop Loss & Take Profit (BUY)</h3>
+      <div class="sltp-box">
+        <div class="sltp-grid">
+          <div class="sltp-item">
+            <div class="sltp-label">Stop Loss</div>
+            <div class="sltp-value red">Entry - 1.5x ATR</div>
+          </div>
+          <div class="sltp-item">
+            <div class="sltp-label">R:R Ratio</div>
+            <div class="sltp-value blue">1:1.33 &amp; 1:2.0</div>
+          </div>
+          <div class="sltp-item">
+            <div class="sltp-label">Take Profit 1</div>
+            <div class="sltp-value green">Entry + 2.0x ATR</div>
+          </div>
+          <div class="sltp-item">
+            <div class="sltp-label">Take Profit 2</div>
+            <div class="sltp-value green">Entry + 3.0x ATR</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="info-box">
+        <div class="info-title">Example: Gold BUY Trade</div>
+        <p><strong>Entry:</strong> $5,140 | <strong>ATR(14):</strong> $40</p>
+        <p><strong>Stop Loss:</strong> $5,140 - (1.5 x $40) = <span class="hl-red">$5,080</span> (60 points neeche)</p>
+        <p><strong>TP1:</strong> $5,140 + (2.0 x $40) = <span class="hl-green">$5,220</span> (80 points upar, R:R = 1:1.33)</p>
+        <p><strong>TP2:</strong> $5,140 + (3.0 x $40) = <span class="hl-green">$5,260</span> (120 points upar, R:R = 1:2.0)</p>
+        <p>TP1 hit hone par <strong>half position close</strong> karo, baaki TP2 ke liye rakho. SL ko <strong>breakeven</strong> par move karo.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SECTION 3: SELL RULES ==================== -->
+<section class="section" id="sell">
+  <div class="section-header" onclick="toggleSection(this)">
+    <h2><span class="icon icon-red">3</span> SELL Signal Rules</h2>
+    <span class="chevron">&#9660;</span>
+  </div>
+  <div class="section-body">
+    <div class="section-content">
+
+      <p>SELL signal tab aata hai jab market <span class="hl-red">neeche jaane wala</span> hota hai. BUY ka mirror image hai &mdash; sab ulta ho jaata hai.</p>
+
+      <!-- Type 1 -->
+      <div class="signal-card signal-sell">
+        <div class="signal-title">&#9660; Type 1: EMA Crossover SELL</div>
+        <ul>
+          <li><strong>EMA 20</strong> ne <strong>EMA 50</strong> ko upar se neeche cross kiya (Death Cross)</li>
+          <li><strong>RSI</strong> value <strong>30 se 60</strong> ke beech ho</li>
+          <li><strong>4H chart</strong> pe overall trend <strong>bearish</strong> ho (EMA 20 < EMA 50 on 4H)</li>
+        </ul>
+      </div>
+
+      <p><strong>Kab hota hai?</strong> Jab naya downtrend start hota hai. EMA 20 neeche girta hai EMA 50 ke, matlab sellers control mein aa rahe hain.</p>
+
+      <!-- Type 2 -->
+      <div class="signal-card signal-sell">
+        <div class="signal-title">&#9660; Type 2: Trend Pullback SELL</div>
+        <ul>
+          <li>Price pehle se <strong>downtrend</strong> mein ho (EMA 20 already below EMA 50)</li>
+          <li>Price <strong>upar jaake EMA 20</strong> ko touch kare (pullback/bounce up)</li>
+          <li><strong>RSI</strong> value <strong>45 se 65</strong> ke beech ho (slightly overbought zone)</li>
+          <li>Price EMA 20 se <strong>reject hoke neeche</strong> gire (wapas neeche jaane lage)</li>
+        </ul>
+      </div>
+
+      <p><strong>Kab hota hai?</strong> Downtrend mein price thoda upar aata hai (pullback). EMA 20 resistance ki tarah kaam karta hai. Jab price wahin se reject ho, toh SELL entry milti hai.</p>
+
+      <!-- SL/TP -->
+      <h3>Stop Loss & Take Profit (SELL)</h3>
+      <div class="sltp-box">
+        <div class="sltp-grid">
+          <div class="sltp-item">
+            <div class="sltp-label">Stop Loss</div>
+            <div class="sltp-value red">Entry + 1.5x ATR</div>
+          </div>
+          <div class="sltp-item">
+            <div class="sltp-label">R:R Ratio</div>
+            <div class="sltp-value blue">1:1.33 &amp; 1:2.0</div>
+          </div>
+          <div class="sltp-item">
+            <div class="sltp-label">Take Profit 1</div>
+            <div class="sltp-value green">Entry - 2.0x ATR</div>
+          </div>
+          <div class="sltp-item">
+            <div class="sltp-label">Take Profit 2</div>
+            <div class="sltp-value green">Entry - 3.0x ATR</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="info-box">
+        <div class="info-title">Example: Gold SELL Trade</div>
+        <p><strong>Entry:</strong> $5,140 | <strong>ATR(14):</strong> $40</p>
+        <p><strong>Stop Loss:</strong> $5,140 + (1.5 x $40) = <span class="hl-red">$5,200</span> (60 points upar)</p>
+        <p><strong>TP1:</strong> $5,140 - (2.0 x $40) = <span class="hl-green">$5,060</span> (80 points neeche, R:R = 1:1.33)</p>
+        <p><strong>TP2:</strong> $5,140 - (3.0 x $40) = <span class="hl-green">$5,020</span> (120 points neeche, R:R = 1:2.0)</p>
+        <p>Same process: TP1 par half close, SL breakeven par move karo.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SECTION 4: RISK MANAGEMENT ==================== -->
+<section class="section" id="risk">
+  <div class="section-header" onclick="toggleSection(this)">
+    <h2><span class="icon icon-orange">4</span> Risk Management</h2>
+    <span class="chevron">&#9660;</span>
+  </div>
+  <div class="section-body">
+    <div class="section-content">
+
+      <div class="danger-box">
+        <div class="danger-title">SABSE IMPORTANT SECTION</div>
+        <p>Strategy se zyada important hai <strong>risk management</strong>. Best strategy bhi bina proper risk management ke account blow kar degi. Yeh rules kabhi mat todo.</p>
+      </div>
+
+      <h3>Core Rules</h3>
+      <ol class="rule-list">
+        <li data-num="1"><strong>1% Risk Per Trade:</strong> Har trade mein maximum <span class="hl-orange">account ka 1%</span> risk karo. $10,000 account = max <span class="hl-orange">$100 loss</span> per trade.</li>
+        <li data-num="2"><strong>Max 1 Open Trade:</strong> Ek time pe sirf <span class="hl-blue">1 hi trade</span> open rakho. Multiple trades = multiple risk. Beginner ke liye 1 kafi hai.</li>
+        <li data-num="3"><strong>Daily Loss Limit 3%:</strong> Agar ek din mein <span class="hl-red">3% loss</span> ho jaaye ($300 on $10K), toh <strong>us din ka trading BAND</strong>. Computer band karo.</li>
+        <li data-num="4"><strong>Weekly Loss Limit 5%:</strong> Agar ek week mein <span class="hl-red">5% loss</span> ho jaaye ($500 on $10K), toh <strong>poore hafte ka trading BAND</strong>. Review karo kya galat hua.</li>
+      </ol>
+
+      <h3>Position Sizing Formula</h3>
+      <p>Yeh formula batata hai ki <strong>kitne lots</strong> trade karne hain taaki risk 1% se zyada na ho:</p>
+
+      <div class="formula-box">
+<span class="comment">// Step 1: Risk amount nikalo</span>
+<span class="keyword">risk_amount</span> = account_balance x <span class="value">0.01</span>
+<span class="comment">// Example: $10,000 x 0.01 = $100</span>
+
+<span class="comment">// Step 2: SL distance nikalo (ATR se)</span>
+<span class="keyword">sl_distance</span> = <span class="value">1.5</span> x ATR(14)
+<span class="comment">// Example: 1.5 x $40 = $60</span>
+
+<span class="comment">// Step 3: Lot size calculate karo</span>
+<span class="keyword">lots</span> = risk_amount / (sl_distance x contract_size)
+<span class="comment">// Gold: $100 / ($60 x 100) = 0.0167 lots</span>
+<span class="comment">// Round down: 0.01 lots</span>
+      </div>
+
+      <h3>Contract Sizes</h3>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Market</th>
+              <th>Contract Size</th>
+              <th>$1 Move =</th>
+              <th>Max Lots ($10K)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="hl-gold">Gold (XAUUSD)</span></td>
+              <td>100 oz per lot</td>
+              <td>$100 per lot</td>
+              <td><span class="hl-red">0.03 lots</span></td>
+            </tr>
+            <tr>
+              <td>Silver (XAGUSD)</td>
+              <td>5,000 oz per lot</td>
+              <td>$5,000 per lot</td>
+              <td><span class="hl-red">0.01 lots</span></td>
+            </tr>
+            <tr>
+              <td>Indian Stocks</td>
+              <td>Varies</td>
+              <td>Varies</td>
+              <td>Calculate per stock</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="warning-box">
+        <div class="warning-title">Gold Hard Cap</div>
+        <p>Gold ke liye <strong>hard cap: 0.05 lots per $1,000 balance</strong>. $10K account = maximum <span class="hl-orange">0.05 lots</span> overall. But recommended hai <span class="hl-green">0.03 lots</span> ya usse kam.</p>
+        <p>Formula chahe 0.05 lots bole, toh bhi 0.03 se zyada mat lo.</p>
+      </div>
+
+      <h3>KABHI MAT KARO (Never Do)</h3>
+      <ul class="never-list">
+        <li><strong>KABHI Stop Loss hatao ya door mat karo</strong> &mdash; SL lagaya hai toh wahin rehne do, chahe loss ho raha ho. SL hatana = account blow.</li>
+        <li><strong>KABHI NFP ya FOMC ke time trade mat karo</strong> &mdash; Non-Farm Payroll (har mahine first Friday) aur Federal Reserve meetings ke time Gold $50-100 ek minute mein hil sakta hai. Calendar check karo.</li>
+        <li><strong>KABHI revenge trading mat karo</strong> &mdash; Loss ke baad gusse mein bada trade lena = zyada loss. Agar 3% daily limit touch ho jaaye, band karo.</li>
+        <li><strong>KABHI apna poora capital ek trade mein mat lagao</strong> &mdash; "All in" sirf gambling hai, trading nahi.</li>
+        <li><strong>KABHI bina Stop Loss ke trade mat karo</strong> &mdash; SL nahi lagaya toh unlimited loss ho sakta hai. Trade kholte hi SL lagao.</li>
+      </ul>
+
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SECTION 5: CHECKLIST ==================== -->
+<section class="section" id="checklist">
+  <div class="section-header" onclick="toggleSection(this)">
+    <h2><span class="icon icon-purple">5</span> Trade Checklist</h2>
+    <span class="chevron">&#9660;</span>
+  </div>
+  <div class="section-body">
+    <div class="section-content">
+
+      <p><strong>Har trade se pehle</strong> yeh checklist check karo. Agar koi bhi item &#10007; hai, toh trade mat lo.</p>
+
+      <h3>Entry Checklist</h3>
+      <ul class="checklist" id="entry-checklist">
+        <li onclick="toggleCheck(this)">
+          <span class="check-icon">&#10003;</span>
+          <span><strong>Higher Timeframe Trend:</strong> 4H chart pe EMA 20/50 se trend confirm kiya? BUY ke liye bullish, SELL ke liye bearish hona chahiye.</span>
+        </li>
+        <li onclick="toggleCheck(this)">
+          <span class="check-icon">&#10003;</span>
+          <span><strong>Signal Type:</strong> Kya Type 1 (Crossover) ya Type 2 (Pullback) signal clearly dikh raha hai 1H chart pe?</span>
+        </li>
+        <li onclick="toggleCheck(this)">
+          <span class="check-icon">&#10003;</span>
+          <span><strong>RSI Range:</strong> Kya RSI sahi range mein hai? (BUY T1: 40-70, BUY T2: 35-55, SELL T1: 30-60, SELL T2: 45-65)</span>
+        </li>
+        <li onclick="toggleCheck(this)">
+          <span class="check-icon">&#10003;</span>
+          <span><strong>Stop Loss Calculated:</strong> ATR se SL calculate kiya? 1.5x ATR distance hai?</span>
+        </li>
+        <li onclick="toggleCheck(this)">
+          <span class="check-icon">&#10003;</span>
+          <span><strong>1% Risk Check:</strong> Position size formula se lots calculate kiye? Risk $100 se zyada toh nahi? (on $10K)</span>
+        </li>
+        <li onclick="toggleCheck(this)">
+          <span class="check-icon">&#10003;</span>
+          <span><strong>Daily Loss Limit:</strong> Aaj ka total loss 3% se kam hai? Agar 3% touch ho gaya toh aaj trade NAHI.</span>
+        </li>
+        <li onclick="toggleCheck(this)">
+          <span class="check-icon">&#10003;</span>
+          <span><strong>Weekly Loss Limit:</strong> Is hafte ka total loss 5% se kam hai? Agar 5% touch ho gaya toh is hafte trade NAHI.</span>
+        </li>
+        <li onclick="toggleCheck(this)">
+          <span class="check-icon">&#10003;</span>
+          <span><strong>News Check:</strong> Kya aaj koi major news hai? (NFP, FOMC, CPI). Agar haan toh news ke 1 hour pehle aur baad trade mat karo.</span>
+        </li>
+        <li onclick="toggleCheck(this)">
+          <span class="check-icon">&#10003;</span>
+          <span><strong>No Other Open Trade:</strong> Kya abhi koi aur trade open hai? Agar haan toh naya trade mat karo (max 1 open).</span>
+        </li>
+        <li onclick="toggleCheck(this)">
+          <span class="check-icon">&#10003;</span>
+          <span><strong>TP Levels Set:</strong> TP1 (2.0x ATR) aur TP2 (3.0x ATR) dono set kiye? TP1 pe half close ka plan hai?</span>
+        </li>
+      </ul>
+
+      <div class="info-box">
+        <div class="info-title">Checklist Tip</div>
+        <p>Items par click karke check/uncheck kar sakte ho. Har naye trade se pehle sab <strong>reset</strong> karo aur phir se check karo.</p>
+        <p style="margin-top: 0.5rem;"><button onclick="resetChecklist()" style="background:var(--accent-blue);color:white;border:none;padding:0.4rem 1rem;border-radius:6px;cursor:pointer;font-size:0.8rem;">Reset Checklist</button></p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SECTION 6: GOLD WARNING ==================== -->
+<section class="section" id="gold-warning">
+  <div class="section-header" onclick="toggleSection(this)">
+    <h2><span class="icon icon-gold">6</span> Gold-Specific Warning</h2>
+    <span class="chevron">&#9660;</span>
+  </div>
+  <div class="section-body">
+    <div class="section-content">
+
+      <div class="danger-box">
+        <div class="danger-title">GOLD BAHUT DANGEROUS HAI</div>
+        <p>Gold sabse popular hai but sabse risky bhi hai. Bahut carefully trade karo. Neeche padho kyu.</p>
+      </div>
+
+      <h3>Gold Key Facts</h3>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Parameter</th>
+              <th>Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Current Price (approx)</td>
+              <td><span class="hl-gold">~$5,140</span></td>
+            </tr>
+            <tr>
+              <td>Average Daily Range</td>
+              <td><span class="hl-orange">$80 - $100</span></td>
+            </tr>
+            <tr>
+              <td>1 Standard Lot</td>
+              <td>100 troy ounces</td>
+            </tr>
+            <tr>
+              <td>$1 Price Move (1 lot)</td>
+              <td><span class="hl-red">$100 profit/loss</span></td>
+            </tr>
+            <tr>
+              <td>$1 Price Move (0.01 lot)</td>
+              <td>$1 profit/loss</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="danger-box">
+        <div class="danger-title">Jan 29, 2026 Flash Crash</div>
+        <p>Gold <span class="hl-red">-$380</span> gira sirf <span class="hl-red">28 minutes</span> mein.</p>
+        <p>Agar tumhare paas <strong>1 standard lot</strong> hota (BUY), toh loss hota: <span class="hl-red">$380 x 100 = $38,000</span></p>
+        <p>$10,000 account toh <span class="hl-red">3.8x blow</span> ho jaata &mdash; account negative mein chala jaata.</p>
+        <p>Yeh 28 minutes mein hua. SL bhi slip ho sakta hai itni speed mein (slippage).</p>
+      </div>
+
+      <h3>Math Samjho: Account Wipeout</h3>
+      <div class="formula-box">
+<span class="comment">// $10K account, 1 standard lot Gold BUY</span>
+<span class="keyword">Daily range</span> = <span class="value">$80 - $100</span>
+<span class="keyword">1 lot exposure</span> = $100 x 100 = <span class="value">$10,000/day potential swing</span>
+
+<span class="comment">// Agar Gold $100 neeche jaaye (normal day):</span>
+<span class="keyword">Loss</span> = 100 x $100 = <span class="value">$10,000 = POORA ACCOUNT KHATAM</span>
+
+<span class="comment">// Isliye KABHI 1 lot mat lo $10K account pe!</span>
+      </div>
+
+      <div class="warning-box">
+        <div class="warning-title">Recommended Lot Size for Gold</div>
+        <p>$10,000 account ke liye Gold mein maximum <span class="hl-green">0.03 lots</span> lo.</p>
+        <p><strong>0.03 lots mein:</strong> $1 move = $3 | $100 move (full day) = $300 loss = 3% (daily limit)</p>
+        <p>Yeh safe hai kyunki daily limit 3% hai aur 0.03 lots se worst case bhi 3% se zyada nahi jaayega ek normal day mein.</p>
+        <p style="margin-top:0.5rem;"><strong>Hard Cap yaad rakho:</strong> 0.05 lots per $1,000 balance. But 0.03 recommended hai.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SECTION 7: MARKET HOURS ==================== -->
+<section class="section" id="hours">
+  <div class="section-header" onclick="toggleSection(this)">
+    <h2><span class="icon icon-blue">7</span> Market Hours</h2>
+    <span class="chevron">&#9660;</span>
+  </div>
+  <div class="section-body">
+    <div class="section-content">
+
+      <p>Sab market alag time pe khulte hain. Sahi time pe trade karna bahut zaroori hai &mdash; wrong time pe <strong>spread badh jaata hai</strong> aur <strong>liquidity kam</strong> hoti hai.</p>
+
+      <div class="hours-card">
+        <div class="hours-title"><span class="hl-gold">Gold / Silver (XAUUSD, XAGUSD)</span></div>
+        <div class="hours-time">Sunday 6:00 PM &ndash; Friday 5:00 PM ET (24/5)</div>
+        <div class="hours-note">IST: Monday 3:30 AM &ndash; Saturday 2:30 AM | Pura hafta 24 hours open</div>
+      </div>
+
+      <div class="hours-card">
+        <div class="hours-title"><span class="hl-blue">NSE Indian Stocks (NIFTY etc.)</span></div>
+        <div class="hours-time">Monday &ndash; Friday: 9:15 AM &ndash; 3:30 PM IST</div>
+        <div class="hours-note">Pre-market: 9:00-9:15 AM | Post-market: 3:30-4:00 PM</div>
+      </div>
+
+      <h3>Best Trading Hours (Gold)</h3>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Session</th>
+              <th>Time (IST)</th>
+              <th>Volatility</th>
+              <th>Recommendation</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Asian Session</td>
+              <td>5:30 AM - 2:00 PM</td>
+              <td><span class="hl-green">Low</span></td>
+              <td>Avoid &mdash; kam movement</td>
+            </tr>
+            <tr>
+              <td>London Open</td>
+              <td>1:30 PM - 5:30 PM</td>
+              <td><span class="hl-orange">Medium-High</span></td>
+              <td>Good &mdash; trend start hota hai</td>
+            </tr>
+            <tr>
+              <td style="font-weight:700;color:var(--accent-green)">London/NY Overlap</td>
+              <td style="font-weight:700;color:var(--accent-green)">6:30 PM - 8:30 PM</td>
+              <td><span class="hl-red">Highest</span></td>
+              <td style="color:var(--accent-green);font-weight:600">BEST TIME &mdash; max liquidity</td>
+            </tr>
+            <tr>
+              <td>NY Session</td>
+              <td>7:00 PM - 1:30 AM</td>
+              <td><span class="hl-orange">High</span></td>
+              <td>Good &mdash; big moves</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="info-box">
+        <div class="info-title">Best Window Summary</div>
+        <p>Gold ke liye sabse achha time: <span class="hl-green">1:30 PM - 8:30 PM IST</span> (London open + NY overlap)</p>
+        <p>Is window mein sabse zyada volume hota hai, spread kam hota hai, aur signals zyada reliable hote hain.</p>
+        <p>Indian stocks ke liye: <span class="hl-blue">9:30 AM - 11:30 AM IST</span> aur <span class="hl-blue">1:30 PM - 3:00 PM IST</span></p>
+      </div>
+
+      <div class="warning-box">
+        <div class="warning-title">News Events Se Bachke Rehna</div>
+        <p>Major news events ke 1 ghanta pehle aur 30 minutes baad <strong>trade mat karo</strong>:</p>
+        <p><span class="hl-red">NFP</span> &mdash; Non-Farm Payrolls (US) &mdash; Har mahine first Friday, 7:00 PM IST</p>
+        <p><span class="hl-red">FOMC</span> &mdash; Federal Reserve Decision &mdash; ~8 baar saal mein, 12:00 AM IST (approx)</p>
+        <p><span class="hl-orange">CPI</span> &mdash; Inflation Data (US) &mdash; Monthly, 7:00 PM IST</p>
+        <p style="margin-top:0.5rem;">Calendar check karo: <strong>forexfactory.com</strong> ya <strong>investing.com/economic-calendar</strong></p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SECTION 8: WEEKLY TARGETS ==================== -->
+<section class="section" id="targets">
+  <div class="section-header" onclick="toggleSection(this)">
+    <h2><span class="icon icon-green">8</span> Weekly Targets & Growth</h2>
+    <span class="chevron">&#9660;</span>
+  </div>
+  <div class="section-body">
+    <div class="section-content">
+
+      <div class="target-card conservative">
+        <div class="target-title">Conservative Target</div>
+        <div class="target-amount">$200 - $500 / week</div>
+        <p style="font-size:0.85rem; color:var(--text-secondary);">Success probability: <span class="hl-green">80-90%</span> agar rules follow karo</p>
+      </div>
+
+      <h3>Math Behind the Target</h3>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Parameter</th>
+              <th>Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Trades per week</td>
+              <td><span class="hl-blue">3-4 trades</span></td>
+            </tr>
+            <tr>
+              <td>Win Rate</td>
+              <td><span class="hl-green">55%</span> (realistic for beginners)</td>
+            </tr>
+            <tr>
+              <td>Average R:R</td>
+              <td><span class="hl-blue">1:2</span> (risk $100, win $200)</td>
+            </tr>
+            <tr>
+              <td>Risk per trade</td>
+              <td>$100 (1% of $10K)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="formula-box">
+<span class="comment">// Weekly Math (4 trades, 55% win rate, 1:2 R:R)</span>
+<span class="keyword">Wins</span>  = 4 x 0.55 = <span class="value">2.2 trades won</span>
+<span class="keyword">Losses</span> = 4 x 0.45 = <span class="value">1.8 trades lost</span>
+
+<span class="keyword">Win amount</span>  = 2.2 x $200 = <span class="value">+$440</span>
+<span class="keyword">Loss amount</span> = 1.8 x $100 = <span class="value">-$180</span>
+
+<span class="keyword">Net weekly</span> = $440 - $180 = <span class="value">+$260/week</span>
+<span class="comment">// Monthly: ~$1,000 | Yearly: ~$13,000</span>
+      </div>
+
+      <h3>Compounding Growth Path</h3>
+      <p>Jaise account badhega, lot size proportionally badhega (1% risk same rahega):</p>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Month</th>
+              <th>Balance</th>
+              <th>1% Risk</th>
+              <th>Weekly Target</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Month 1</td>
+              <td>$10,000</td>
+              <td>$100</td>
+              <td>$200-$260</td>
+            </tr>
+            <tr>
+              <td>Month 3</td>
+              <td>$12,000</td>
+              <td>$120</td>
+              <td>$240-$312</td>
+            </tr>
+            <tr>
+              <td>Month 6</td>
+              <td>$16,000</td>
+              <td>$160</td>
+              <td>$320-$416</td>
+            </tr>
+            <tr>
+              <td>Month 12</td>
+              <td>$23,000</td>
+              <td>$230</td>
+              <td>$460-$600</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="warning-box">
+        <div class="warning-title">Reality Check</div>
+        <p>Yeh targets <strong>average</strong> hain. Kuch weeks loss mein bhi jaayenge &mdash; yeh normal hai.</p>
+        <p><strong>Losing weeks se daro mat.</strong> Agar rules follow karte raho toh long term mein profit hoga.</p>
+        <p>Pehle 2-3 months ko <strong>learning period</strong> samjho. Zyada profit ki expectation mat rakho initially.</p>
+      </div>
+
+      <div class="info-box">
+        <div class="info-title">Key Points Yaad Rakho</div>
+        <p><span class="hl-green">1.</span> Zyada trades mat lo &mdash; quality > quantity. 3-4 trades/week kafi hai.</p>
+        <p><span class="hl-green">2.</span> Har hafte profit nahi hoga &mdash; yeh normal hai. Monthly average dekho.</p>
+        <p><span class="hl-green">3.</span> Risk management hi sabse bada edge hai &mdash; strategy secondary hai.</p>
+        <p><span class="hl-green">4.</span> Patience rakho &mdash; compounding ka magic time ke saath dikhta hai.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- ===== FOOTER ===== -->
+<footer class="footer">
+  <p>Triple Confirmation Strategy Guide v1.0</p>
+  <p style="margin-top:0.3rem;">Created for Mohit | MetaTrader 5 - Money Plant Server</p>
+  <p style="margin-top:0.3rem;">Last Updated: February 2026</p>
+</footer>
+
+<!-- ===== JAVASCRIPT ===== -->
+<script>
+// Toggle section open/close
+function toggleSection(header) {
+  var section = header.parentElement;
+  section.classList.toggle('open');
+}
+
+// Toggle checklist item
+function toggleCheck(li) {
+  li.classList.toggle('checked');
+}
+
+// Reset all checklist items
+function resetChecklist() {
+  var items = document.querySelectorAll('#entry-checklist li');
+  items.forEach(function(item) {
+    item.classList.remove('checked');
+  });
+}
+
+// Open all sections on print
+window.addEventListener('beforeprint', function() {
+  document.querySelectorAll('.section').forEach(function(s) {
+    s.classList.add('open');
+  });
+});
+</script>
+
+</body>
+</html>

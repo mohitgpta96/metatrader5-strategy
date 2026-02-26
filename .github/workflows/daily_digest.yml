@@ -1,0 +1,40 @@
+name: Daily Market Digest
+
+on:
+  schedule:
+    # 3:45 PM IST = 10:15 AM UTC (after NSE close)
+    - cron: '15 10 * * 1-5'
+    # 11:00 PM IST = 5:30 PM UTC (evening Gold summary)
+    - cron: '30 17 * * 1-5'
+  workflow_dispatch:
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Generate and send digest
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          ACCOUNT_BALANCE: ${{ secrets.ACCOUNT_BALANCE }}
+          RISK_PERCENT: '1.0'
+        run: |
+          python -c "
+          from scanner.daily_digest import generate_digest
+          from bot.telegram_bot import send_daily_digest
+          digest = generate_digest()
+          print(digest)
+          send_daily_digest(digest)
+          "
