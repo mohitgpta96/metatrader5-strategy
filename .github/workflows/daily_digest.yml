@@ -24,17 +24,14 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Generate and send digest
+      - name: Generate digest (internal only, not sent to Telegram)
         env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           ACCOUNT_BALANCE: ${{ secrets.ACCOUNT_BALANCE }}
           RISK_PERCENT: '1.0'
         run: |
           python -c "
           from scanner.daily_digest import generate_digest
-          from bot.telegram_bot import send_daily_digest
           digest = generate_digest()
           print(digest)
-          send_daily_digest(digest)
+          print('[INFO] Daily digest is internal only. Telegram = signals only.')
           "

@@ -197,21 +197,18 @@ def cmd_backtest():
 
 
 def cmd_test_telegram():
-    """Test Telegram connection."""
-    from bot.telegram_bot import send_message_sync
+    """Test Telegram connection (console only - does NOT send to Telegram)."""
+    from bot.telegram_bot import get_all_recipients
+    from config.settings import TELEGRAM_BOT_TOKEN
 
-    print("Sending test message to Telegram...")
-    success = send_message_sync(
-        "TEST MESSAGE\n"
-        "==================\n"
-        "MetaTrader5 Strategy Bot is working!\n"
-        "==================\n"
-        "Multi-Market Signal System ready."
-    )
-    if success:
-        print("Message sent! Check your Telegram.")
-    else:
-        print("Message printed to console (Telegram not configured yet).")
+    print("\n--- Telegram Bot Config Check ---")
+    print(f"Bot Token: {'SET' if TELEGRAM_BOT_TOKEN else 'NOT SET'}")
+    recipients = get_all_recipients()
+    print(f"Recipients configured: {len(recipients)}")
+    for r in recipients:
+        print(f"  - {r}")
+    print("\n[OK] Config looks good. No test message sent to Telegram.")
+    print("     Only real trading signals will be sent to Telegram.")
 
 
 def cmd_fetch_all():
@@ -344,13 +341,9 @@ def cmd_manage_subscribers():
 
         elif choice == "6":
             recipients = get_all_recipients()
-            print(f"Sending test to {len(recipients)} recipient(s)...")
-            send_message_sync(
-                "TEST: MT5 Trading Signals\n"
-                "==========================\n"
-                "You are subscribed to futures signals.\n"
-                f"Total subscribers: {len(recipients)}"
-            )
+            print(f"\n[INFO] {len(recipients)} recipient(s) configured.")
+            print("       Test messages are NOT sent to Telegram.")
+            print("       Only real trading signals will be sent.")
 
         elif choice == "0":
             break
