@@ -249,6 +249,11 @@ NEWS_FEEDS = {
         "label": "Trade Wars & Sanctions",
         "impacts": ["GOLD", "COPPER", "STOCKS", "ALL"],
     },
+    "us_policy": {
+        "url": "https://news.google.com/rss/search?q=Trump+tariff+trade+dollar+economy+executive+order&hl=en-US&gl=US&ceid=US:en",
+        "label": "US Policy & Trump",
+        "impacts": ["GOLD", "DXY", "STOCKS", "ALL"],
+    },
 }
 
 # Keyword sentiment dictionaries
@@ -292,9 +297,19 @@ GEO_EVENT_IMPACTS = {
     "tariff": {"GOLD": +1, "STOCKS": -2, "COPPER": -1},
     "sanctions": {"GOLD": +2, "CRUDE_OIL": +1, "STOCKS": -1},
 
+    # US Policy & Political figures
+    "trump": {"GOLD": +1, "STOCKS": -1, "DXY": +1, "COPPER": -1},
+    "trump tariff": {"GOLD": +2, "STOCKS": -2, "COPPER": -2, "DXY": +1},
+    "trump sanction": {"GOLD": +2, "CRUDE_OIL": +1, "STOCKS": -1},
+    "trump trade": {"GOLD": +1, "STOCKS": -2, "COPPER": -1},
+    "executive order": {"GOLD": +1, "STOCKS": -1},
+    "powell": {"GOLD": +1, "STOCKS": 0, "DXY": -1},
+
     # Central Banks
     "fed rate cut": {"GOLD": +3, "STOCKS": +2, "DXY": -2},
     "fed rate hike": {"GOLD": -3, "STOCKS": -2, "DXY": +2},
+    "rate cut": {"GOLD": +2, "STOCKS": +2, "DXY": -1},
+    "rate hike": {"GOLD": -2, "STOCKS": -2, "DXY": +1},
     "rbi rate": {"STOCKS_IN": +1, "GOLD": 0},
     "inflation high": {"GOLD": +2, "STOCKS": -1},
     "inflation low": {"GOLD": -1, "STOCKS": +1},

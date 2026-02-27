@@ -51,7 +51,33 @@ def format_signal(signal):
         "=" * 35,
         f"EMA20 {'>' if signal['direction'] == 'BUY' else '<'} EMA50 | RSI: {signal['rsi']}",
         f"Trend: {signal['trend']} | ATR: {currency}{signal['atr']:,.2f}",
+        f"Signal Type: {signal.get('signal_type', '?')} | Score: {signal.get('signal_score', '?')}/10",
     ])
+
+    # --- Real-time Market Context ---
+    macro_warning = signal.get("macro_warning")
+    macro_risk = signal.get("macro_risk", "MEDIUM")
+    macro_outlook = signal.get("macro_outlook", "NEUTRAL")
+    geo_events = signal.get("geo_events", [])
+    top_news = signal.get("top_news")
+
+    has_context = (
+        macro_warning
+        or macro_risk in ("HIGH", "EXTREME")
+        or geo_events
+        or top_news
+    )
+
+    if has_context:
+        lines.append("=" * 35)
+        lines.append(f"MARKET CONTEXT (Real-time):")
+        lines.append(f"Risk: {macro_risk} | Outlook: {macro_outlook}")
+        if macro_warning:
+            lines.append(f"[!] {macro_warning}")
+        for ev in geo_events:
+            lines.append(f">> {ev}")
+        if top_news:
+            lines.append(f"News: {top_news}")
 
     lines.extend([
         "=" * 35,

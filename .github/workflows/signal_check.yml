@@ -2,8 +2,13 @@ name: Market Signal Scanner
 
 on:
   schedule:
-    # Every hour at :33, Monday to Friday (all 24 hours covered)
-    - cron: '33 * * * 1-5'
+    # NSE market hours: every 15 min (Mon-Fri 9:15 AM - 3:30 PM IST = 3:45-10:00 UTC)
+    - cron: '*/15 4-9 * * 1-5'
+    - cron: '0,15 10 * * 1-5'
+
+    # Off-hours (COMEX/MCX overnight + evening): every hour
+    - cron: '33 0-3 * * 1-5'
+    - cron: '33 10-23 * * 1-5'
 
     # Sunday evening IST (Gold market opens Sun ~3:30 AM IST = Sun 22:00 UTC Sat)
     - cron: '33 22,23 * * 0'

@@ -309,8 +309,13 @@ def scan_all():
 def _filter_signals_by_outlook(signals, intel):
     """
     Add macro context to signals. Flag signals that go AGAINST macro outlook.
-    Does NOT remove signals - just adds a warning label.
+    Also attaches relevant geo events and top news headline per instrument.
+    Does NOT remove signals - just adds context labels.
     """
+    news_analysis = intel.get("news_analysis", {})
+    geo_events = news_analysis.get("geo_events", [])
+    top_headlines = news_analysis.get("top_headlines", [])
+
     filtered = []
     for signal in signals:
         ticker = signal.get("ticker", "")
@@ -319,17 +324,13 @@ def _filter_signals_by_outlook(signals, intel):
 
         # Determine relevant outlook
         outlook = "NEUTRAL"
-        if sig_type == "commodity":
-            if "GC=F" in ticker or "XAUUSD" in ticker:
+        if sig_type in ("commodity", "mcx_commodity"):
+            if "GC=F" in ticker or "SI=F" in ticker or "PL=F" in ticker:
                 outlook = intel.get("gold_outlook", "NEUTRAL")
-            elif "SI=F" in ticker:
-                outlook = intel.get("gold_outlook", "NEUTRAL")  # Silver follows gold
-            elif "CL=F" in ticker or "BZ=F" in ticker:
+            elif "CL=F" in ticker or "BZ=F" in ticker or "NG=F" in ticker:
                 outlook = intel.get("oil_outlook", "NEUTRAL")
-            elif "NG=F" in ticker:
-                outlook = intel.get("oil_outlook", "NEUTRAL")
-            elif "HG=F" in ticker or "PL=F" in ticker:
-                outlook = intel.get("stock_outlook", "NEUTRAL")  # Industrial metals follow stocks
+            elif "HG=F" in ticker:
+                outlook = intel.get("stock_outlook", "NEUTRAL")
         else:
             outlook = intel.get("stock_outlook", "NEUTRAL")
 
@@ -345,9 +346,72 @@ def _filter_signals_by_outlook(signals, intel):
         else:
             signal["macro_warning"] = None
 
+        # Attach relevant geopolitical events for this instrument
+        signal["geo_events"] = _get_relevant_geo(ticker, sig_type, geo_events)
+
+        # Attach top relevant news headline for this instrument
+        signal["top_news"] = _get_top_headline(ticker, sig_type, top_headlines)
+
         filtered.append(signal)
 
     return filtered
+
+
+def _get_relevant_geo(ticker, sig_type, geo_events):
+    """Return geo events relevant to this specific instrument (max 2)."""
+    relevant = []
+    for ev in geo_events[:10]:
+        impacts = ev.get("impacts", {})
+        match = False
+        if sig_type in ("commodity", "mcx_commodity"):
+            if "GC=F" in ticker or "SI=F" in ticker or "PL=F" in ticker:
+                match = any(k in impacts for k in ("GOLD", "SILVER", "PLATINUM"))
+            elif "CL=F" in ticker or "BZ=F" in ticker:
+                match = any(k in impacts for k in ("CRUDE_OIL", "BRENT_CRUDE"))
+            elif "NG=F" in ticker:
+                match = "NATURAL_GAS" in impacts
+            elif "HG=F" in ticker:
+                match = "COPPER" in impacts
+            # ALL-impact events affect everything
+            if not match and "ALL" in str(impacts):
+                match = True
+        else:  # stocks
+            match = any(k in impacts for k in ("STOCKS", "STOCKS_IN", "ALL"))
+            if not match and "ALL" in str(impacts):
+                match = True
+        if match:
+            relevant.append(f"{ev['event'].title()} ({ev['mentions']}x in news)")
+    return relevant[:2]
+
+
+def _get_top_headline(ticker, sig_type, top_headlines):
+    """Return the most relevant news headline for this instrument."""
+    category_keywords = {
+        "GC=F": ["gold", "metal", "precious"],
+        "SI=F": ["gold", "silver", "metal"],
+        "CL=F": ["oil", "energy", "crude"],
+        "BZ=F": ["oil", "energy", "brent"],
+        "NG=F": ["oil", "energy", "gas"],
+        "HG=F": ["copper", "metal"],
+        "PL=F": ["gold", "platinum", "metal"],
+    }
+    preferred = category_keywords.get(ticker, [])
+    if sig_type == "stock":
+        preferred = ["india", "nifty", "stock", "market"]
+
+    # Match by category first
+    for h in top_headlines:
+        cat = h.get("category", "").lower()
+        if any(p in cat for p in preferred):
+            return h["title"][:90]
+
+    # Fallback: US Policy / geopolitical headline (affects everything)
+    for h in top_headlines:
+        cat = h.get("category", "").lower()
+        if any(p in cat for p in ("policy", "trump", "geo", "trade")):
+            return h["title"][:90]
+
+    return None
 
 
 if __name__ == "__main__":
