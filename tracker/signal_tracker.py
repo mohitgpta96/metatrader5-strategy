@@ -12,7 +12,7 @@ import yfinance as yf
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from tracker.signal_logger import (
-    get_active_signals, update_signal, get_log_stats,
+    get_active_signals, get_open_signals, update_signal, get_log_stats,
 )
 
 # Signals expire after 7 days if no SL/TP hit
@@ -21,13 +21,14 @@ SIGNAL_EXPIRY_DAYS = 7
 
 def track_all_signals():
     """
-    Check all active signals against current market prices.
+    Check all open signals against current market prices.
+    Tracks ACTIVE + TP1_HIT signals (TP1_HIT still open, waiting for TP2 or SL).
     Updates status: TP1_HIT, TP2_HIT, SL_HIT, or EXPIRED.
     Returns summary of what happened.
     """
-    active = get_active_signals()
+    active = get_open_signals()  # ACTIVE + TP1_HIT
     if not active:
-        print("[TRACKER] No active signals to track.")
+        print("[TRACKER] No open signals to track.")
         return {"checked": 0, "tp1_hits": 0, "tp2_hits": 0, "sl_hits": 0, "expired": 0}
 
     print(f"[TRACKER] Checking {len(active)} active signal(s)...")
@@ -96,6 +97,8 @@ def track_all_signals():
             "checks_count": sig["checks_count"] + 1,
         }
 
+        already_tp1 = sig.get("tp1_hit", False)
+
         if direction == "BUY":
             updates["highest_price"] = round(max(sig.get("highest_price", entry), high_since), 2)
             updates["lowest_price"] = round(min(sig.get("lowest_price", entry), low_since), 2)
@@ -111,7 +114,7 @@ def track_all_signals():
                 sl_hits += 1
                 print(f"  [SL HIT] {sig['name']} BUY @ {entry} -> SL {sl}")
 
-            # Check TP2 (High went above TP2) - check TP2 first (better outcome)
+            # Check TP2 (High went above TP2)
             elif high_since >= tp2:
                 updates["status"] = "TP2_HIT"
                 updates["tp1_hit"] = True
@@ -121,17 +124,14 @@ def track_all_signals():
                 tp2_hits += 1
                 print(f"  [TP2 HIT] {sig['name']} BUY @ {entry} -> TP2 {tp2}")
 
-            # Check TP1 (High went above TP1)
-            elif high_since >= tp1:
-                if not sig.get("tp1_hit"):
-                    updates["tp1_hit"] = True
-                    updates["tp1_hit_time"] = now.isoformat()
-                # Check if also hit SL after TP1 (trailing scenario)
-                # For simplicity: mark as TP1_HIT (partial profit)
+            # Check TP1 (only if not already hit)
+            elif high_since >= tp1 and not already_tp1:
+                updates["tp1_hit"] = True
+                updates["tp1_hit_time"] = now.isoformat()
                 updates["status"] = "TP1_HIT"
                 updates["pnl_at_close"] = round(tp1 - entry, 2)
                 tp1_hits += 1
-                print(f"  [TP1 HIT] {sig['name']} BUY @ {entry} -> TP1 {tp1}")
+                print(f"  [TP1 HIT] {sig['name']} BUY @ {entry} -> TP1 {tp1} (watching for TP2)")
 
         elif direction == "SELL":
             updates["highest_price"] = round(max(sig.get("highest_price", entry), high_since), 2)
@@ -148,7 +148,7 @@ def track_all_signals():
                 sl_hits += 1
                 print(f"  [SL HIT] {sig['name']} SELL @ {entry} -> SL {sl}")
 
-            # Check TP2 first
+            # Check TP2
             elif low_since <= tp2:
                 updates["status"] = "TP2_HIT"
                 updates["tp1_hit"] = True
@@ -158,15 +158,14 @@ def track_all_signals():
                 tp2_hits += 1
                 print(f"  [TP2 HIT] {sig['name']} SELL @ {entry} -> TP2 {tp2}")
 
-            # Check TP1
-            elif low_since <= tp1:
-                if not sig.get("tp1_hit"):
-                    updates["tp1_hit"] = True
-                    updates["tp1_hit_time"] = now.isoformat()
+            # Check TP1 (only if not already hit)
+            elif low_since <= tp1 and not already_tp1:
+                updates["tp1_hit"] = True
+                updates["tp1_hit_time"] = now.isoformat()
                 updates["status"] = "TP1_HIT"
                 updates["pnl_at_close"] = round(entry - tp1, 2)
                 tp1_hits += 1
-                print(f"  [TP1 HIT] {sig['name']} SELL @ {entry} -> TP1 {tp1}")
+                print(f"  [TP1 HIT] {sig['name']} SELL @ {entry} -> TP1 {tp1} (watching for TP2)")
 
         # Check expiry (signal older than 7 days with no resolution)
         age = (now - sig_time).total_seconds() / 86400

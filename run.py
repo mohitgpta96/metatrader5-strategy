@@ -285,10 +285,14 @@ def cmd_check_signals():
     Full scan + send signals via Telegram + log & track signals.
     Used by GitHub Actions cron job.
     """
+    from datetime import datetime, timezone
     from scanner.market_scanner import scan_all
     from bot.telegram_bot import send_signal_alert, check_new_subscribers
-    from tracker.signal_logger import log_signal
+    from tracker.signal_logger import log_signal, log_run_summary
     from tracker.signal_tracker import track_all_signals
+
+    run_start = datetime.now(timezone.utc)
+    print(f"\n[{run_start.strftime('%Y-%m-%d %H:%M UTC')}] Starting signal check...")
 
     # Auto-register any new /start users before sending
     new = check_new_subscribers()
@@ -299,12 +303,19 @@ def cmd_check_signals():
 
     if not results.get("markets_open", True):
         print("\nAll markets closed. Nothing to send.")
-        # Still track existing signals even when markets close
         print("\n--- Tracking Active Signals ---")
-        track_all_signals()
+        tracker_result = track_all_signals()
+        log_run_summary({
+            "timestamp": run_start.isoformat(),
+            "markets_open": False,
+            "signals_found": 0,
+            "signals_sent": 0,
+            "tracker": tracker_result,
+        })
         return
 
     signals = results["signals"]
+    signals_sent = []
 
     if signals:
         # Sort by signal score (best first), send only top 4
@@ -315,7 +326,8 @@ def cmd_check_signals():
         for signal in top_signals:
             send_signal_alert(signal)
             log_signal(signal)
-            print(f"  Sent & Logged: {signal['direction']} {signal['name']} (score={signal.get('signal_score', '?')})")
+            signals_sent.append(f"{signal['direction']} {signal['name']} (score={signal.get('signal_score','?')})")
+            print(f"  [{datetime.now(timezone.utc).strftime('%H:%M UTC')}] Sent: {signals_sent[-1]}")
 
         if len(signals) > 4:
             skipped = [f"{s['direction']} {s['name']}" for s in signals_sorted[4:]]
@@ -323,9 +335,23 @@ def cmd_check_signals():
     else:
         print("\nNo signals at this time.")
 
-    # Track all active signals against current prices
+    # Track all open signals against current prices
     print("\n--- Tracking Active Signals ---")
-    track_all_signals()
+    tracker_result = track_all_signals()
+
+    # Save run summary for debugging
+    log_run_summary({
+        "timestamp": run_start.isoformat(),
+        "markets_open": True,
+        "signals_found": len(signals),
+        "signals_sent": len(signals_sent),
+        "sent_signals": signals_sent,
+        "tracker": tracker_result,
+        "commodity_signals": len(results.get("commodity_signals", [])),
+        "mcx_signals": len(results.get("mcx_signals", [])),
+        "stock_signals": len(results.get("stock_signals", [])),
+    })
+    print(f"\n[{datetime.now(timezone.utc).strftime('%H:%M UTC')}] Run complete.")
 
 
 def cmd_list_subscribers():

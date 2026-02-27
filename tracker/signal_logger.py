@@ -169,3 +169,29 @@ def get_log_stats():
         "archived": len(history),
         "total": active_count + resolved + len(history),
     }
+
+
+RUN_LOG_FILE = LOG_DIR / "run_log.json"
+MAX_RUN_LOG_ENTRIES = 200  # Keep last 200 runs
+
+
+def log_run_summary(summary):
+    """
+    Append a run summary to run_log.json.
+    Called at end of each cmd_check_signals() run.
+    Keeps last 200 entries max.
+    """
+    entries = _load_json(RUN_LOG_FILE) if RUN_LOG_FILE.exists() else []
+    entries.append(summary)
+    # Trim to last 200
+    if len(entries) > MAX_RUN_LOG_ENTRIES:
+        entries = entries[-MAX_RUN_LOG_ENTRIES:]
+    _save_json(RUN_LOG_FILE, entries)
+
+
+def get_open_signals():
+    """
+    Get signals that still need price tracking:
+    ACTIVE signals + TP1_HIT signals (still open, waiting for TP2 or SL).
+    """
+    return [s for s in _load_json(ACTIVE_FILE) if s["status"] in ("ACTIVE", "TP1_HIT")]
