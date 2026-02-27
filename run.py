@@ -280,6 +280,43 @@ def cmd_fetch_all():
     fetch_all()
 
 
+def _check_loss_limits():
+    """
+    Check if daily or weekly loss limits have been hit.
+    Returns (ok, reason) — if ok=False, skip sending signals.
+    """
+    from config.settings import DAILY_LOSS_LIMIT_PERCENT, WEEKLY_LOSS_LIMIT_PERCENT, ACCOUNT_BALANCE
+    from tracker.signal_logger import get_signals_for_period
+    from datetime import datetime, timezone
+
+    try:
+        today_signals = get_signals_for_period(days=1)
+        week_signals = get_signals_for_period(days=7)
+
+        def total_pnl(signals):
+            return sum(
+                s.get("pnl_at_close", 0) or 0
+                for s in signals
+                if s.get("status") in ("SL_HIT", "TP1_HIT", "TP2_HIT", "EXPIRED")
+            )
+
+        daily_pnl = total_pnl(today_signals)
+        weekly_pnl = total_pnl(week_signals)
+
+        daily_loss_limit = -abs(ACCOUNT_BALANCE * DAILY_LOSS_LIMIT_PERCENT / 100)
+        weekly_loss_limit = -abs(ACCOUNT_BALANCE * WEEKLY_LOSS_LIMIT_PERCENT / 100)
+
+        if daily_pnl <= daily_loss_limit:
+            return False, f"Daily loss limit hit: P&L={daily_pnl:.2f} (limit={daily_loss_limit:.2f})"
+        if weekly_pnl <= weekly_loss_limit:
+            return False, f"Weekly loss limit hit: P&L={weekly_pnl:.2f} (limit={weekly_loss_limit:.2f})"
+
+        return True, None
+    except Exception as e:
+        print(f"  [WARN] Loss limit check failed: {e} — proceeding anyway")
+        return True, None
+
+
 def cmd_check_signals():
     """
     Full scan + send signals via Telegram + log & track signals.
@@ -293,6 +330,22 @@ def cmd_check_signals():
 
     run_start = datetime.now(timezone.utc)
     print(f"\n[{run_start.strftime('%Y-%m-%d %H:%M UTC')}] Starting signal check...")
+
+    # --- Loss Limit Check ---
+    limits_ok, limit_reason = _check_loss_limits()
+    if not limits_ok:
+        print(f"\n[LOSS LIMIT] {limit_reason}")
+        print("Skipping new signals. Tracking existing signals only.")
+        track_all_signals()
+        log_run_summary({
+            "timestamp": run_start.isoformat(),
+            "markets_open": True,
+            "signals_found": 0,
+            "signals_sent": 0,
+            "skipped_reason": limit_reason,
+            "tracker": {},
+        })
+        return
 
     # Auto-register any new /start users before sending
     new = check_new_subscribers()

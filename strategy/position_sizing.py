@@ -119,41 +119,70 @@ def calculate_lot_size(
     return None
 
 
-def calculate_trade_levels(ticker, entry_price, atr, direction="BUY"):
+def _get_risk_percent_for_score(signal_score):
     """
-    Calculate complete trade levels: SL, TP1, TP2, and lot size.
+    Scale risk percentage based on signal confidence score.
+      Score 1-5  (Trend Opportunity / weak)  → 0.5% risk
+      Score 6-8  (Normal strict signal)       → 1.0% risk
+      Score 9-10 (High-confidence signal)     → 1.5% risk
+    """
+    from config.settings import RISK_PERCENT_LOW, RISK_PERCENT_MID, RISK_PERCENT_HIGH
+    if signal_score >= 9:
+        return RISK_PERCENT_HIGH
+    elif signal_score >= 6:
+        return RISK_PERCENT_MID
+    else:
+        return RISK_PERCENT_LOW
+
+
+def calculate_trade_levels(ticker, entry_price, atr, direction="BUY", signal_score=5):
+    """
+    Calculate complete trade levels: SL, TP1, TP2, TP3, and lot size.
+
+    TP3 is added for high-score signals (score >= 7) as a runner target.
+    Position size is scaled to signal confidence via signal_score.
 
     Args:
         ticker: yfinance ticker
         entry_price: current/entry price
         atr: ATR value for the instrument
         direction: "BUY" or "SELL"
+        signal_score: 1-10 quality score (affects position sizing)
 
     Returns:
         dict with all trade parameters
     """
-    from config.settings import SL_ATR_MULTIPLIER, TP1_ATR_MULTIPLIER, TP2_ATR_MULTIPLIER
+    from config.settings import (
+        SL_ATR_MULTIPLIER, TP1_ATR_MULTIPLIER, TP2_ATR_MULTIPLIER, TP3_ATR_MULTIPLIER,
+    )
 
     if direction == "BUY":
-        sl = entry_price - (SL_ATR_MULTIPLIER * atr)
+        sl  = entry_price - (SL_ATR_MULTIPLIER  * atr)
         tp1 = entry_price + (TP1_ATR_MULTIPLIER * atr)
         tp2 = entry_price + (TP2_ATR_MULTIPLIER * atr)
+        tp3 = entry_price + (TP3_ATR_MULTIPLIER * atr)   # runner target
     else:  # SELL
-        sl = entry_price + (SL_ATR_MULTIPLIER * atr)
+        sl  = entry_price + (SL_ATR_MULTIPLIER  * atr)
         tp1 = entry_price - (TP1_ATR_MULTIPLIER * atr)
         tp2 = entry_price - (TP2_ATR_MULTIPLIER * atr)
+        tp3 = entry_price - (TP3_ATR_MULTIPLIER * atr)   # runner target
 
-    # Calculate position size
-    sizing = calculate_lot_size(ticker, entry_price, sl)
+    # Score-scaled risk percent
+    risk_pct = _get_risk_percent_for_score(signal_score)
+
+    # Calculate position size using score-adjusted risk
+    sizing = calculate_lot_size(ticker, entry_price, sl, risk_percent=risk_pct)
     if sizing is None:
         return None
 
-    sl_distance = abs(entry_price - sl)
+    sl_distance  = abs(entry_price - sl)
     tp1_distance = abs(entry_price - tp1)
     tp2_distance = abs(entry_price - tp2)
+    tp3_distance = abs(entry_price - tp3)
 
     rr_tp1 = tp1_distance / sl_distance if sl_distance > 0 else 0
     rr_tp2 = tp2_distance / sl_distance if sl_distance > 0 else 0
+    rr_tp3 = tp3_distance / sl_distance if sl_distance > 0 else 0
 
     inst_type = get_instrument_type(ticker)
     lot_size = sizing["lot_size"]
@@ -161,13 +190,15 @@ def calculate_trade_levels(ticker, entry_price, atr, direction="BUY"):
     if inst_type == "commodity":
         commodity_info = get_commodity_info(ticker)
         dpm = commodity_info["dollar_per_1_move"] if commodity_info else 100
-        potential_loss = sl_distance * dpm * lot_size
-        potential_tp1 = tp1_distance * dpm * lot_size
-        potential_tp2 = tp2_distance * dpm * lot_size
+        potential_loss = sl_distance  * dpm * lot_size
+        potential_tp1  = tp1_distance * dpm * lot_size
+        potential_tp2  = tp2_distance * dpm * lot_size
+        potential_tp3  = tp3_distance * dpm * lot_size
     else:  # mcx_commodity, stock
-        potential_loss = sl_distance * lot_size
-        potential_tp1 = tp1_distance * lot_size
-        potential_tp2 = tp2_distance * lot_size
+        potential_loss = sl_distance  * lot_size
+        potential_tp1  = tp1_distance * lot_size
+        potential_tp2  = tp2_distance * lot_size
+        potential_tp3  = tp3_distance * lot_size
 
     return {
         "direction": direction,
@@ -175,16 +206,19 @@ def calculate_trade_levels(ticker, entry_price, atr, direction="BUY"):
         "stop_loss": round(sl, 2),
         "tp1": round(tp1, 2),
         "tp2": round(tp2, 2),
+        "tp3": round(tp3, 2) if signal_score >= 7 else None,  # Only for high-confidence
         "atr": round(atr, 2),
         "sl_distance": round(sl_distance, 2),
         "lot_size": lot_size,
         "rr_tp1": round(rr_tp1, 2),
         "rr_tp2": round(rr_tp2, 2),
+        "rr_tp3": round(rr_tp3, 2) if signal_score >= 7 else None,
         "potential_loss": round(potential_loss, 2),
         "potential_tp1": round(potential_tp1, 2),
         "potential_tp2": round(potential_tp2, 2),
+        "potential_tp3": round(potential_tp3, 2) if signal_score >= 7 else None,
         "account_balance": ACCOUNT_BALANCE,
-        "risk_percent": RISK_PERCENT,
+        "risk_percent": risk_pct,
         "was_capped": sizing.get("was_capped", False),
     }
 

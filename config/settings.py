@@ -45,13 +45,29 @@ RSI_SELL_MAX = 60
 SL_ATR_MULTIPLIER = 1.5
 TP1_ATR_MULTIPLIER = 2.0  # R:R = 1:1.33
 TP2_ATR_MULTIPLIER = 3.0  # R:R = 1:2.00
+TP3_ATR_MULTIPLIER = 4.5  # R:R = 1:3.00 (runner — only for score >= 7)
+
+# --- MACD Settings ---
+MACD_FAST = 12
+MACD_SLOW = 26
+MACD_SIGNAL_PERIOD = 9
+
+# --- Bollinger Bands ---
+BB_PERIOD = 20
+BB_STD = 2
 
 # --- Signal Quality Filters ---
 ADX_PERIOD = 14
-ADX_MIN_THRESHOLD = 15       # Only trade when trend exists (ADX > 15)
+ADX_MIN_THRESHOLD = 20       # Raised from 15 — ADX<20 = choppy/ranging market
 VOLUME_MA_PERIOD = 20        # 20-period moving average of volume
-VOLUME_MIN_RATIO = 0.5       # Volume must be >= 0.5x the 20-period average
+VOLUME_MIN_RATIO = 1.0       # Raised from 0.5 — require at least average volume
 MIN_SIGNAL_SCORE = 4         # Only send signals with score >= 4 (out of 10)
+CANDLE_BODY_MIN_RATIO = 0.35 # Body must be >= 35% of candle range (filter doji/spinning tops)
+
+# --- Score-Scaled Position Sizing ---
+RISK_PERCENT_LOW = 0.5       # Score 1-5 (Trend Opportunity): half risk
+RISK_PERCENT_MID = 1.0       # Score 6-8 (normal signals): standard risk
+RISK_PERCENT_HIGH = 1.5      # Score 9-10 (high confidence): 1.5x risk
 
 # --- Timeframes ---
 PRIMARY_TIMEFRAME = "1h"      # Signal generation
