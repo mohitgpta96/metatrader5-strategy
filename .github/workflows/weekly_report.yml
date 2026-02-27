@@ -2,9 +2,8 @@ name: Weekly Performance Report
 
 on:
   schedule:
-    # Run on March 5, 2026 at 6 PM IST (12:30 PM UTC)
-    # After that, every Sunday at same time
-    - cron: '30 12 * * 0'
+    # Every Friday at 5:00 PM IST = 11:30 AM UTC
+    - cron: '30 11 * * 5'
 
   workflow_dispatch: # Manual trigger
 
@@ -37,8 +36,28 @@ jobs:
             git checkout origin/signal-data -- data/signals_log/ 2>/dev/null || echo "No logs yet"
           fi
 
-      - name: Generate weekly report (internal only)
-        run: python run.py --weekly-report
+      - name: Generate and send weekly report to personal Telegram
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          # TELEGRAM_RECIPIENTS intentionally not set
+          # -> falls back to TELEGRAM_CHAT_ID only (personal, not channel)
+          ACCOUNT_BALANCE: ${{ secrets.ACCOUNT_BALANCE }}
+        run: |
+          python -c "
+          from tracker.weekly_report import generate_weekly_report
+          from tracker.signal_logger import archive_resolved
+          from bot.telegram_bot import send_message_sync
+
+          report, data = generate_weekly_report()
+          print(report)
+          send_message_sync(report)
+          print('Report sent to personal Telegram.')
+
+          archived = archive_resolved()
+          if archived > 0:
+              print(f'Archived {archived} resolved signal(s).')
+          "
 
       - name: Persist signal logs (after archive)
         if: always()
