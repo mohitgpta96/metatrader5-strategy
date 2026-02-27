@@ -48,10 +48,10 @@ TP2_ATR_MULTIPLIER = 3.0  # R:R = 1:2.00
 
 # --- Signal Quality Filters ---
 ADX_PERIOD = 14
-ADX_MIN_THRESHOLD = 20       # Only trade when trend exists (ADX > 20)
+ADX_MIN_THRESHOLD = 15       # Only trade when trend exists (ADX > 15)
 VOLUME_MA_PERIOD = 20        # 20-period moving average of volume
-VOLUME_MIN_RATIO = 0.8       # Volume must be >= 0.8x the 20-period average
-MIN_SIGNAL_SCORE = 6         # Only send signals with score >= 6 (out of 10)
+VOLUME_MIN_RATIO = 0.5       # Volume must be >= 0.5x the 20-period average
+MIN_SIGNAL_SCORE = 4         # Only send signals with score >= 4 (out of 10)
 
 # --- Timeframes ---
 PRIMARY_TIMEFRAME = "1h"      # Signal generation
