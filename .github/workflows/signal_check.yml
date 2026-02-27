@@ -39,6 +39,12 @@ jobs:
             git checkout origin/signal-data -- data/signals_log/ 2>/dev/null || echo "No logs yet"
           fi
 
+      - name: Pre-flight check (Telegram + data)
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          ACCOUNT_BALANCE: ${{ secrets.ACCOUNT_BALANCE }}
+        run: python run.py --preflight
+
       - name: Run signal check + track
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}

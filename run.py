@@ -28,6 +28,7 @@ def main():
     parser.add_argument("--backtest", action="store_true", help="Run backtests on Gold + top stocks")
     parser.add_argument("--test-telegram", action="store_true", help="Send test message to Telegram")
     parser.add_argument("--check-signals", action="store_true", help="Scan all + send signals via Telegram (for GitHub Actions)")
+    parser.add_argument("--preflight", action="store_true", help="Pre-flight check: verify Telegram bot + data fetch before sending signals")
     parser.add_argument("--subscribers", action="store_true", help="List all subscribers")
     parser.add_argument("--add-user", type=str, help="Add a user by chat ID (e.g., --add-user 123456789)")
     parser.add_argument("--add-channel", type=str, help="Add a channel (e.g., --add-channel @my_channel)")
@@ -51,6 +52,8 @@ def main():
         cmd_test_telegram()
     elif args.check_signals:
         cmd_check_signals()
+    elif args.preflight:
+        cmd_preflight()
     elif args.subscribers:
         cmd_list_subscribers()
     elif args.add_user:
@@ -209,6 +212,66 @@ def cmd_test_telegram():
         print(f"  - {r}")
     print("\n[OK] Config looks good. No test message sent to Telegram.")
     print("     Only real trading signals will be sent to Telegram.")
+
+
+def cmd_preflight():
+    """
+    Pre-flight check before sending signals.
+    1. Verify Telegram bot is reachable (getMe API call)
+    2. Verify market data can be fetched (GC=F quick test)
+    Exits with code 1 on any failure — triggers GitHub Actions failure alert.
+    """
+    import sys
+    import requests
+    from config.settings import TELEGRAM_BOT_TOKEN
+
+    print("--- Pre-flight Check ---")
+    all_ok = True
+
+    # 1. Telegram bot check
+    print("[1/2] Checking Telegram bot...")
+    if not TELEGRAM_BOT_TOKEN:
+        print("  FAIL: TELEGRAM_BOT_TOKEN not set")
+        all_ok = False
+    else:
+        try:
+            resp = requests.get(
+                f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getMe",
+                timeout=10
+            )
+            data = resp.json()
+            if data.get("ok"):
+                bot_name = data["result"].get("username", "?")
+                print(f"  OK: Bot @{bot_name} is alive")
+            else:
+                print(f"  FAIL: Telegram API error — {data.get('description', 'unknown')}")
+                all_ok = False
+        except Exception as e:
+            print(f"  FAIL: Cannot reach Telegram — {e}")
+            all_ok = False
+
+    # 2. Market data check
+    print("[2/2] Checking market data fetch (Gold)...")
+    try:
+        import yfinance as yf
+        import pandas as pd
+        df = yf.download("GC=F", period="5d", interval="1h", progress=False, auto_adjust=True)
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.get_level_values(0)
+        if df is None or df.empty or len(df) < 5:
+            print(f"  FAIL: No data returned for GC=F (got {len(df) if df is not None else 0} rows)")
+            all_ok = False
+        else:
+            print(f"  OK: Got {len(df)} rows for GC=F — last close ${float(df.iloc[-1]['Close']):.2f}")
+    except Exception as e:
+        print(f"  FAIL: Data fetch error — {e}")
+        all_ok = False
+
+    if all_ok:
+        print("\n[PREFLIGHT] All checks passed. Proceeding to signal scan.")
+    else:
+        print("\n[PREFLIGHT] One or more checks FAILED. Aborting signal scan.")
+        sys.exit(1)
 
 
 def cmd_fetch_all():
