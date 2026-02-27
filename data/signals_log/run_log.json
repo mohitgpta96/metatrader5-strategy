@@ -85,5 +85,19 @@
     "commodity_signals": 0,
     "mcx_signals": 0,
     "stock_signals": 0
+  },
+  {
+    "timestamp": "2026-02-27T22:00:23.228336+00:00",
+    "markets_open": false,
+    "signals_found": 0,
+    "signals_sent": 0,
+    "tracker": {
+      "checked": 5,
+      "tp1_hits": 3,
+      "tp2_hits": 0,
+      "sl_hits": 0,
+      "expired": 0,
+      "still_active": 2
+    }
   }
 ]
