@@ -21,5 +21,28 @@
     "commodity_signals": 0,
     "mcx_signals": 1,
     "stock_signals": 0
+  },
+  {
+    "timestamp": "2026-02-27T17:08:29.451801+00:00",
+    "markets_open": true,
+    "signals_found": 4,
+    "signals_sent": 4,
+    "sent_signals": [
+      "BUY Brent Crude Futures (score=3)",
+      "BUY MCX Zinc Futures (score=3)",
+      "BUY Gold Futures (XAUUSD) (score=2)",
+      "BUY Silver Futures (XAGUSD) (score=2)"
+    ],
+    "tracker": {
+      "checked": 5,
+      "tp1_hits": 1,
+      "tp2_hits": 0,
+      "sl_hits": 0,
+      "expired": 0,
+      "still_active": 4
+    },
+    "commodity_signals": 0,
+    "mcx_signals": 0,
+    "stock_signals": 0
   }
 ]
