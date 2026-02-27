@@ -9,7 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from data.fetcher import fetch_single, fetch_stocks
-from strategy.signals import check_signal, check_trend_status
+from strategy.signals import check_signal, check_trend_status, check_best_opportunity
 from strategy.macro_analysis import generate_market_intelligence, format_intelligence_report
 from config.instruments import (
     ALL_COMMODITY_TICKERS, ALL_INDEX_TICKERS, ALL_STOCK_TICKERS,
@@ -21,10 +21,11 @@ from config.market_hours import is_nse_open, is_mcx_open, is_commodity_open, mar
 def scan_commodities():
     """
     Scan Gold, Silver, Crude Oil etc. for signals.
-    Returns signals, statuses, and cached data dict for MCX reuse.
+    Returns signals, statuses, opportunity_signals, and cached data dict for MCX reuse.
     """
     print("\n--- Scanning Global Commodity Futures ---")
     signals = []
+    opportunity_signals = []
     statuses = []
     cached_data = {}  # ticker -> (df_1h, df_4h) for MCX reuse
 
@@ -43,12 +44,16 @@ def scan_commodities():
             print(f"    [SKIP] No data for {name}")
             continue
 
-        # Check for signal
+        # Check for strict signal
         signal = check_signal(df_1h, df_confirmation=df_4h, ticker=ticker)
         if signal:
             signals.append(signal)
             print(f"    SIGNAL: {signal['direction']} at ${signal['entry']}")
         else:
+            # No strict signal — check for best opportunity (fallback)
+            opp = check_best_opportunity(df_1h, ticker=ticker)
+            if opp:
+                opportunity_signals.append(opp)
             print(f"    No signal")
 
         # Always get status for daily digest
@@ -56,7 +61,7 @@ def scan_commodities():
         if status:
             statuses.append(status)
 
-    return signals, statuses, cached_data
+    return signals, statuses, cached_data, opportunity_signals
 
 
 def scan_mcx(already_scanned=None):
@@ -67,6 +72,7 @@ def scan_mcx(already_scanned=None):
     """
     print("\n--- Scanning MCX Indian Commodity Futures ---")
     signals = []
+    opportunity_signals = []
     statuses = []
     already_scanned = already_scanned or {}
 
@@ -95,6 +101,11 @@ def scan_mcx(already_scanned=None):
             signals.append(signal)
             print(f"    SIGNAL: {signal['direction']} at ${signal['entry']}")
         else:
+            opp = check_best_opportunity(df_1h, ticker=ticker)
+            if opp:
+                opp["type"] = "mcx_commodity"
+                opp["name"] = name
+                opportunity_signals.append(opp)
             print(f"    No signal")
 
         status = check_trend_status(df_1h, ticker=ticker)
@@ -103,7 +114,7 @@ def scan_mcx(already_scanned=None):
             status["type"] = "mcx_commodity"
             statuses.append(status)
 
-    return signals, statuses
+    return signals, statuses, opportunity_signals
 
 
 def scan_indices():
@@ -132,10 +143,13 @@ def scan_stocks(tickers=None):
     tickers = tickers or ALL_STOCK_TICKERS
     print(f"\n--- Scanning {len(tickers)} Stock Futures ---")
     signals = []
+    opportunity_signals = []
     statuses = []
 
     # Fetch all stock data at once (batch)
     stock_data = fetch_stocks(tickers, interval="1d")
+
+    print(f"  Got data for {sum(1 for t in tickers if stock_data.get(t) is not None)}/{len(tickers)} stocks")
 
     for ticker in tickers:
         df = stock_data.get(ticker)
@@ -149,6 +163,10 @@ def scan_stocks(tickers=None):
         if signal:
             signals.append(signal)
             print(f"  SIGNAL: {signal['direction']} {name} at Rs {signal['entry']}")
+        else:
+            opp = check_best_opportunity(df, ticker=ticker)
+            if opp:
+                opportunity_signals.append(opp)
 
         status = check_trend_status(df, ticker=ticker)
         if status:
@@ -158,7 +176,7 @@ def scan_stocks(tickers=None):
     sell_count = sum(1 for s in signals if s["direction"] == "SELL")
     print(f"\n  Results: {buy_count} BUY + {sell_count} SELL signals out of {len(tickers)} stocks")
 
-    return signals, statuses
+    return signals, statuses, opportunity_signals
 
 
 def scan_all():
@@ -202,15 +220,18 @@ def scan_all():
     commodity_signals = []
     commodity_statuses = []
     commodity_cached = {}
+    commodity_opps = []
     mcx_signals = []
     mcx_statuses = []
+    mcx_opps = []
     index_statuses = []
     stock_signals = []
     stock_statuses = []
+    stock_opps = []
 
     # Global Commodities - only if COMEX/NYMEX is live
     if commodity_live:
-        commodity_signals, commodity_statuses, commodity_cached = scan_commodities()
+        commodity_signals, commodity_statuses, commodity_cached, commodity_opps = scan_commodities()
         if intel:
             commodity_signals = _filter_signals_by_outlook(commodity_signals, intel)
     else:
@@ -218,7 +239,7 @@ def scan_all():
 
     # MCX Indian Commodities - only if MCX is live
     if mcx_live:
-        mcx_signals, mcx_statuses = scan_mcx(already_scanned=commodity_cached)
+        mcx_signals, mcx_statuses, mcx_opps = scan_mcx(already_scanned=commodity_cached)
         if intel:
             mcx_signals = _filter_signals_by_outlook(mcx_signals, intel)
     else:
@@ -227,13 +248,32 @@ def scan_all():
     # Indices & Stocks - only if NSE is live
     if nse_live:
         index_statuses = scan_indices()
-        stock_signals, stock_statuses = scan_stocks()
+        stock_signals, stock_statuses, stock_opps = scan_stocks()
         if intel:
             stock_signals = _filter_signals_by_outlook(stock_signals, intel)
     else:
         print("\n--- NSE CLOSED - Skipping Stocks & Indices ---")
 
     all_signals = commodity_signals + mcx_signals + stock_signals
+
+    # --- GUARANTEED MINIMUM 3 SIGNALS ---
+    # If strict signals < 3, fill up with best opportunity signals
+    if len(all_signals) < 3:
+        all_opps = commodity_opps + mcx_opps + stock_opps
+
+        # Exclude instruments already in strict signals
+        strict_tickers = {s["ticker"] for s in all_signals}
+        fresh_opps = [o for o in all_opps if o["ticker"] not in strict_tickers]
+
+        # Sort opportunities by score (best first)
+        fresh_opps.sort(key=lambda x: x.get("signal_score", 0), reverse=True)
+
+        # Fill up to 4 total
+        needed = 4 - len(all_signals)
+        all_signals = all_signals + fresh_opps[:needed]
+        if fresh_opps[:needed]:
+            print(f"\n  [Opportunity fill] Added {len(fresh_opps[:needed])} best-opportunity signal(s) to reach minimum 3.")
+
     all_statuses = commodity_statuses + mcx_statuses + index_statuses + stock_statuses
 
     print(f"\n{'=' * 60}")

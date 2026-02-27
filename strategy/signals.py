@@ -305,6 +305,102 @@ def check_trend_status(df, ticker=""):
     }
 
 
+def check_best_opportunity(df, ticker=""):
+    """
+    Fallback signal: returns the best trade opportunity even without a strict
+    EMA crossover or pullback touch. Used to guarantee minimum 3-4 signals per scan.
+
+    Requirements: ADX > 10, clear trend (EMA20 above/below EMA50), RSI not at extremes.
+    Score capped at 5 so strict signals (score 4-10) always rank higher.
+    """
+    df = add_indicators(df)
+    if df is None or df.empty:
+        return None
+
+    current = get_current_indicators(df)
+    if current is None:
+        return None
+
+    if current["ema_fast"] is None or current["rsi"] is None or current["atr"] is None:
+        return None
+
+    adx = current.get("adx")
+    rsi = current["rsi"]
+    trend = current["trend"]
+    vol_ratio = current.get("vol_ratio", 1.0)
+
+    # Need minimum trend strength
+    if adx is None or pd.isna(adx) or adx < 10:
+        return None
+
+    # Need a clear directional trend
+    if trend == 0:
+        return None
+
+    # Avoid already-extended moves (RSI at extremes = bad entry)
+    if trend == 1 and rsi > 78:
+        return None
+    if trend == -1 and rsi < 22:
+        return None
+
+    direction = "BUY" if trend == 1 else "SELL"
+
+    # Score: 1-5 (capped below strict signals which score 4-10)
+    score = 1  # Base: valid opportunity exists
+    if adx >= 30:
+        score += 2
+    elif adx >= 20:
+        score += 1
+
+    if vol_ratio and not pd.isna(vol_ratio) and vol_ratio >= 1.0:
+        score += 1
+
+    if direction == "BUY" and 40 <= rsi <= 65:
+        score += 1
+    elif direction == "SELL" and 35 <= rsi <= 60:
+        score += 1
+
+    score = min(5, score)
+
+    trade = calculate_trade_levels(
+        ticker=ticker,
+        entry_price=current["close"],
+        atr=current["atr"],
+        direction=direction,
+    )
+    if trade is None:
+        return None
+
+    return {
+        "ticker": ticker,
+        "name": get_display_name(ticker),
+        "type": get_instrument_type(ticker),
+        "direction": direction,
+        "signal_type": "Trend Opportunity",
+        "signal_score": score,
+        "entry": trade["entry"],
+        "stop_loss": trade["stop_loss"],
+        "tp1": trade["tp1"],
+        "tp2": trade["tp2"],
+        "lot_size": trade["lot_size"],
+        "atr": trade["atr"],
+        "rsi": round(rsi, 1),
+        "adx": round(adx, 1) if not pd.isna(adx) else None,
+        "vol_ratio": round(vol_ratio, 2) if vol_ratio and not pd.isna(vol_ratio) else None,
+        "ema_fast": round(current["ema_fast"], 2),
+        "ema_slow": round(current["ema_slow"], 2),
+        "trend": current["trend_label"],
+        "confirmation_trend": trend,
+        "rr_tp1": trade["rr_tp1"],
+        "rr_tp2": trade["rr_tp2"],
+        "potential_loss": trade["potential_loss"],
+        "potential_tp1": trade["potential_tp1"],
+        "potential_tp2": trade["potential_tp2"],
+        "sl_distance": trade["sl_distance"],
+        "was_capped": trade["was_capped"],
+    }
+
+
 if __name__ == "__main__":
     import yfinance as yf
 
