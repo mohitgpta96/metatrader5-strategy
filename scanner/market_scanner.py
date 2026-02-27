@@ -139,40 +139,58 @@ def scan_indices():
 
 
 def scan_stocks(tickers=None):
-    """Scan NIFTY 100 stocks for signals."""
+    """
+    Scan NIFTY 100 stocks for signals.
+
+    Uses 3-tier MTF approach:
+      Weekly (1W)  → trend bias (confirmation timeframe)
+      Daily  (1D)  → signal generation (primary timeframe)
+    This catches more signals AND filters against weekly trend reversals.
+    """
     tickers = tickers or ALL_STOCK_TICKERS
     print(f"\n--- Scanning {len(tickers)} Stock Futures ---")
     signals = []
     opportunity_signals = []
     statuses = []
 
-    # Fetch all stock data at once (batch)
+    # Fetch daily data (primary signal timeframe)
     stock_data = fetch_stocks(tickers, interval="1d")
+    print(f"  Got daily data for {sum(1 for t in tickers if stock_data.get(t) is not None)}/{len(tickers)} stocks")
 
-    print(f"  Got data for {sum(1 for t in tickers if stock_data.get(t) is not None)}/{len(tickers)} stocks")
+    # Fetch weekly data for MTF confirmation (trend bias filter)
+    # Uses 2y period to ensure enough bars for all indicators (EMA50 needs 50+ bars)
+    weekly_data = {}
+    try:
+        weekly_data = fetch_stocks(tickers, interval="1wk")
+        weekly_count = sum(1 for t in tickers if weekly_data.get(t) is not None)
+        print(f"  Got weekly data for {weekly_count}/{len(tickers)} stocks (MTF bias filter)")
+    except Exception as e:
+        print(f"  [WARN] Weekly MTF fetch failed: {e}. Using daily only.")
 
     for ticker in tickers:
-        df = stock_data.get(ticker)
-        if df is None or df.empty:
+        df_daily  = stock_data.get(ticker)
+        df_weekly = weekly_data.get(ticker)   # None → falls back to daily trend in check_signal
+
+        if df_daily is None or df_daily.empty:
             continue
 
         name = get_display_name(ticker)
 
-        # For stocks, use daily data only (no separate confirmation timeframe)
-        signal = check_signal(df, ticker=ticker)
+        # Pass weekly as df_confirmation — check_signal uses it for confirmation_trend
+        signal = check_signal(df_daily, df_confirmation=df_weekly, ticker=ticker)
         if signal:
             signals.append(signal)
-            print(f"  SIGNAL: {signal['direction']} {name} at Rs {signal['entry']}")
+            print(f"  SIGNAL: {signal['direction']} {name} at Rs {signal['entry']} (score={signal['signal_score']})")
         else:
-            opp = check_best_opportunity(df, ticker=ticker)
+            opp = check_best_opportunity(df_daily, ticker=ticker)
             if opp:
                 opportunity_signals.append(opp)
 
-        status = check_trend_status(df, ticker=ticker)
+        status = check_trend_status(df_daily, ticker=ticker)
         if status:
             statuses.append(status)
 
-    buy_count = sum(1 for s in signals if s["direction"] == "BUY")
+    buy_count  = sum(1 for s in signals if s["direction"] == "BUY")
     sell_count = sum(1 for s in signals if s["direction"] == "SELL")
     print(f"\n  Results: {buy_count} BUY + {sell_count} SELL signals out of {len(tickers)} stocks")
 

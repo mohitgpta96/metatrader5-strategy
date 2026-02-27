@@ -88,6 +88,22 @@ HISTORY_PERIOD_INTRADAY = "60d"  # Max for 1h data on yfinance
 HISTORY_PERIOD_DAILY = "1y"      # 1 year daily data for stocks
 BACKTEST_PERIOD = "2y"           # 2 years for backtesting (daily data)
 
+# --- SuperTrend ---
+SUPERTREND_PERIOD = 10          # ATR period for SuperTrend
+SUPERTREND_MULTIPLIER = 3.0     # Band multiplier (higher = fewer flips, less noise)
+
+# --- Stochastic RSI ---
+STOCHRSI_PERIOD = 14            # RSI period (applied to RSI, not price directly)
+STOCHRSI_SMOOTH_K = 3           # K line smoothing
+STOCHRSI_SMOOTH_D = 3           # D line smoothing (signal line)
+
+# --- Market Structure (BOS / CHoCH) ---
+SWING_LOOKBACK = 10             # Bars used to define a swing high/low
+BOS_ATR_THRESHOLD = 0.3         # Break must exceed swing by at least 0.3x ATR
+
+# --- Fair Value Gap (FVG) ---
+FVG_LOOKBACK = 20               # Bars to scan back for unfilled FVG zones
+
 # --- Market Hours ---
 # All times in IST (UTC+5:30). Converted to UTC at runtime.
 
