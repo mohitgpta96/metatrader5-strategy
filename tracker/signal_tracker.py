@@ -77,8 +77,8 @@ def track_all_signals():
         recent = df[df.index >= sig_time]
 
         if recent.empty:
-            # Use all data if signal is very recent
-            recent = df
+            # Signal is newer than latest candle — use only the current candle
+            recent = df.iloc[[-1]]
 
         current_price = float(df.iloc[-1]["Close"])
         high_since = float(recent["High"].max())
