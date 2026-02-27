@@ -2,6 +2,7 @@ __pycache__/
 *.pyc
 .env
 data/cache/
+data/signals_log/
 *.egg-info/
 .DS_Store
 venv/
