@@ -244,11 +244,19 @@ def cmd_check_signals():
     signals = results["signals"]
 
     if signals:
-        print(f"\n{len(signals)} signal(s) found! Sending to Telegram...")
-        for signal in signals:
+        # Sort by signal score (best first), send only top 4
+        signals_sorted = sorted(signals, key=lambda x: x.get("signal_score", 0), reverse=True)
+        top_signals = signals_sorted[:4]
+
+        print(f"\n{len(signals)} signal(s) found. Sending top {len(top_signals)} to Telegram...")
+        for signal in top_signals:
             send_signal_alert(signal)
-            log_signal(signal)  # Auto-log every signal
-            print(f"  Sent & Logged: {signal['direction']} {signal['name']}")
+            log_signal(signal)
+            print(f"  Sent & Logged: {signal['direction']} {signal['name']} (score={signal.get('signal_score', '?')})")
+
+        if len(signals) > 4:
+            skipped = [f"{s['direction']} {s['name']}" for s in signals_sorted[4:]]
+            print(f"  Skipped (lower score): {', '.join(skipped)}")
     else:
         print("\nNo signals at this time.")
 
