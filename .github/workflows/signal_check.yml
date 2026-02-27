@@ -2,17 +2,13 @@ name: Market Signal Scanner
 
 on:
   schedule:
-    # NSE hours: 9:15 AM - 3:30 PM IST = 3:45 AM - 10:00 AM UTC
-    - cron: '33 4-9 * * 1-5'
+    # Every hour at :33, Monday to Friday (all 24 hours covered)
+    - cron: '33 * * * 1-5'
 
-    # Commodity hours: Nearly 24/5 (Mon 3:30 AM IST - Sat 2:30 AM IST)
-    - cron: '33 10-23 * * 1-5'
-    - cron: '33 0-3 * * 1-5'
+    # Sunday evening IST (Gold market opens Sun ~3:30 AM IST = Sun 22:00 UTC Sat)
+    - cron: '33 22,23 * * 0'
 
-    # Sunday evening (Gold market opens)
-    - cron: '33 22-23 * * 0'
-
-  workflow_dispatch: # Manual trigger
+  workflow_dispatch: # Manual trigger from GitHub UI
 
 permissions:
   contents: write
@@ -52,18 +48,25 @@ jobs:
           RISK_PERCENT: '1.0'
         run: python run.py --check-signals
 
+      - name: Notify on failure
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${TELEGRAM_CHAT_ID}" \
+            -d "text=⚠️ MT5 Scanner FAILED%0A$(date -u '+%d %b %Y %H:%M UTC')%0ACheck: https://github.com/mohitgpta96/metatrader5-strategy/actions"
+
       - name: Persist signal logs
         if: always()
         run: |
           if [ -d "data/signals_log" ] && ls data/signals_log/*.json >/dev/null 2>&1; then
-            # Copy logs to temp
             cp -r data/signals_log /tmp/signal_logs_backup
 
-            # Setup git
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
 
-            # Switch to signal-data branch (create if needed)
             if git ls-remote --heads origin signal-data | grep -q signal-data; then
               git checkout signal-data
             else
@@ -71,7 +74,6 @@ jobs:
               git rm -rf .
             fi
 
-            # Copy logs back and commit
             mkdir -p data/signals_log
             cp -r /tmp/signal_logs_backup/* data/signals_log/
             git add data/signals_log/
