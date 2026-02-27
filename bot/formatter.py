@@ -65,7 +65,6 @@ def format_signal(signal):
         macro_warning
         or macro_risk in ("HIGH", "EXTREME")
         or geo_events
-        or top_news
     )
 
     if has_context:
@@ -76,8 +75,6 @@ def format_signal(signal):
             lines.append(f"[!] {macro_warning}")
         for ev in geo_events:
             lines.append(f">> {ev}")
-        if top_news:
-            lines.append(f"News: {top_news}")
 
     lines.extend([
         "=" * 35,
