@@ -88,6 +88,26 @@ HISTORY_PERIOD_INTRADAY = "60d"  # Max for 1h data on yfinance
 HISTORY_PERIOD_DAILY = "1y"      # 1 year daily data for stocks
 BACKTEST_PERIOD = "2y"           # 2 years for backtesting (daily data)
 
+# --- Ichimoku Cloud ---
+ICHIMOKU_TENKAN  = 9    # Tenkan-sen (conversion line) — short-term trend
+ICHIMOKU_KIJUN   = 26   # Kijun-sen  (base line)       — medium-term trend
+ICHIMOKU_SENKOU_B= 52   # Senkou Span B (cloud base)   — long-term support/resistance
+
+# --- Donchian Channel (Turtle Trading breakout system) ---
+DONCHIAN_PERIOD  = 20   # 20-bar high/low (System 1: fast); 55-bar = System 2 (slow)
+
+# --- Hull Moving Average (HMA) ---
+# Faster than EMA, much less lag. Formula: WMA(2*WMA(n/2) - WMA(n), sqrt(n))
+HMA_FAST = 9
+HMA_SLOW = 16
+
+# --- Rolling VWAP ---
+VWAP_PERIOD = 20        # 20-bar volume-weighted average price (institutional price anchor)
+
+# --- Parabolic SAR ---
+PSAR_STEP     = 0.02    # Acceleration factor step (standard: 0.02)
+PSAR_MAX_STEP = 0.2     # Maximum acceleration factor (standard: 0.2)
+
 # --- SuperTrend ---
 SUPERTREND_PERIOD = 10          # ATR period for SuperTrend
 SUPERTREND_MULTIPLIER = 3.0     # Band multiplier (higher = fewer flips, less noise)

@@ -1,16 +1,14 @@
 """
 Technical indicator calculations using the 'ta' library.
 
-Calculates: EMA, RSI, ATR, ADX, MACD, Bollinger Bands, SuperTrend,
-StochRSI, Swing Structure (BOS/CHoCH), Volume MA for signal generation.
+Full suite — matches and exceeds strategies used by:
+  Zerodha Streak, Tradetron, TradingView top algos, Turtle Trading / CTA funds.
 
-New vs competitors:
-  - SuperTrend: ATR-based directional filter (dominant on Tradetron/AlgoTest)
-  - StochRSI:   More sensitive than plain RSI; catches NSE stocks stuck at 60-65 RSI
-  - BOS/CHoCH:  Break of Structure / Change of Character — fires 2-6 bars before EMA cross
-  - FVG:        Fair Value Gap detection — institutional imbalance entry zones
-  - OB:         Order Block detection — last bearish/bullish candle before impulse
-  - Divergence: RSI/MACD divergence — momentum vs price divergence
+Indicators:
+  Existing : EMA 20/50, RSI 14, ATR 14, ADX 14, MACD, Bollinger Bands,
+             SuperTrend, StochRSI, BOS/CHoCH, Swing H/L, Regime, Session
+  New      : Ichimoku Cloud, Parabolic SAR, Donchian Channel (Turtle),
+             Hull Moving Average, Rolling VWAP
 """
 import sys
 from pathlib import Path
@@ -18,9 +16,9 @@ from datetime import datetime, timezone, timedelta
 
 import numpy as np
 import pandas as pd
-from ta.trend import EMAIndicator, ADXIndicator, MACD
+from ta.trend import EMAIndicator, ADXIndicator, MACD, IchimokuIndicator, PSARIndicator
 from ta.momentum import RSIIndicator, StochRSIIndicator
-from ta.volatility import AverageTrueRange, BollingerBands
+from ta.volatility import AverageTrueRange, BollingerBands, DonchianChannel
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from config.settings import (
@@ -29,6 +27,11 @@ from config.settings import (
     SUPERTREND_PERIOD, SUPERTREND_MULTIPLIER,
     STOCHRSI_PERIOD, STOCHRSI_SMOOTH_K, STOCHRSI_SMOOTH_D,
     SWING_LOOKBACK,
+    ICHIMOKU_TENKAN, ICHIMOKU_KIJUN, ICHIMOKU_SENKOU_B,
+    DONCHIAN_PERIOD,
+    HMA_FAST, HMA_SLOW,
+    VWAP_PERIOD,
+    PSAR_STEP, PSAR_MAX_STEP,
 )
 
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -163,9 +166,8 @@ def add_indicators(df):
         df["StochRSI_K"] = np.nan
         df["StochRSI_D"] = np.nan
 
-    # ── Swing High / Low + BOS / CHoCH (NEW) ─────────────────────────────────
+    # ── Swing High / Low + BOS / CHoCH ───────────────────────────────────────
     try:
-        # Rolling max/min over SWING_LOOKBACK bars, shifted 1 so no look-ahead
         df["Swing_High"] = df["High"].rolling(window=SWING_LOOKBACK).max().shift(1)
         df["Swing_Low"]  = df["Low"].rolling(window=SWING_LOOKBACK).min().shift(1)
         df["BOS"]   = _detect_bos(df)
@@ -175,6 +177,117 @@ def add_indicators(df):
         df["Swing_Low"]  = np.nan
         df["BOS"]   = 0
         df["CHoCH"] = 0
+
+    # ── Ichimoku Cloud (NEW — Japanese institutional method) ──────────────────
+    # Used by: Asian hedge funds, Zerodha Streak, TradingView top strategies
+    try:
+        ichi = IchimokuIndicator(
+            high=high, low=low,
+            window1=ICHIMOKU_TENKAN, window2=ICHIMOKU_KIJUN, window3=ICHIMOKU_SENKOU_B,
+            visual=False,
+        )
+        df["Ichi_Tenkan"]  = ichi.ichimoku_conversion_line()
+        df["Ichi_Kijun"]   = ichi.ichimoku_base_line()
+        df["Ichi_Senkou_A"]= ichi.ichimoku_a()   # Senkou Span A (computed from current data)
+        df["Ichi_Senkou_B"]= ichi.ichimoku_b()   # Senkou Span B
+
+        # Cloud: top and bottom
+        cloud_top = df[["Ichi_Senkou_A", "Ichi_Senkou_B"]].max(axis=1)
+        cloud_bot = df[["Ichi_Senkou_A", "Ichi_Senkou_B"]].min(axis=1)
+
+        # Price position relative to cloud (1=above, -1=below, 0=inside)
+        df["Ichi_Cloud_Bull"] = (df["Ichi_Senkou_A"] > df["Ichi_Senkou_B"]).astype(int)
+        df["Ichi_Above_Cloud"]= (close > cloud_top).astype(int)
+        df["Ichi_Below_Cloud"]= (close < cloud_bot).astype(int)
+
+        # TK relationship and crossover
+        df["Ichi_TK_Bull"]  = (df["Ichi_Tenkan"] > df["Ichi_Kijun"]).astype(int)
+        prev_tk             = df["Ichi_TK_Bull"].shift(1)
+        df["Ichi_TK_Cross"] = 0
+        df.loc[(prev_tk == 0) & (df["Ichi_TK_Bull"] == 1), "Ichi_TK_Cross"] =  1
+        df.loc[(prev_tk == 1) & (df["Ichi_TK_Bull"] == 0), "Ichi_TK_Cross"] = -1
+    except Exception:
+        for col in ["Ichi_Tenkan","Ichi_Kijun","Ichi_Senkou_A","Ichi_Senkou_B"]:
+            df[col] = np.nan
+        for col in ["Ichi_Cloud_Bull","Ichi_Above_Cloud","Ichi_Below_Cloud",
+                    "Ichi_TK_Bull","Ichi_TK_Cross"]:
+            df[col] = 0
+
+    # ── Parabolic SAR (NEW — Zerodha Streak #1 indicator, dynamic stop-and-reverse) ──
+    try:
+        psar_ind = PSARIndicator(
+            high=high, low=low, close=close,
+            step=PSAR_STEP, max_step=PSAR_MAX_STEP,
+        )
+        df["PSAR"]     = psar_ind.psar()
+        psar_up_flag   = psar_ind.psar_up_indicator().fillna(0)
+        psar_down_flag = psar_ind.psar_down_indicator().fillna(0)
+
+        # Direction: 1=bullish (price above SAR), -1=bearish (price below SAR)
+        df["PSAR_Dir"] = psar_up_flag.astype(int) - psar_down_flag.astype(int)
+
+        # Flip detection (0→1 = bullish flip, 1→0 = bearish flip)
+        prev_up = psar_up_flag.shift(1).fillna(0)
+        df["PSAR_Flip"] = 0
+        df.loc[(prev_up == 0) & (psar_up_flag == 1), "PSAR_Flip"] =  1
+        df.loc[(prev_up == 1) & (psar_up_flag == 0), "PSAR_Flip"] = -1
+    except Exception:
+        df["PSAR"]      = np.nan
+        df["PSAR_Dir"]  = 0
+        df["PSAR_Flip"] = 0
+
+    # ── Donchian Channel — Turtle Trading breakout system (NEW) ───────────────
+    # System 1: 20-bar high/low breakout. Used by: CTAs, hedge funds, legends.
+    try:
+        don = DonchianChannel(high=high, low=low, close=close, window=DONCHIAN_PERIOD)
+        df["Don_Upper"] = don.donchian_channel_hband()
+        df["Don_Lower"] = don.donchian_channel_lband()
+        df["Don_Mid"]   = don.donchian_channel_mband()
+
+        # Breakout: close breaks above/below the PREVIOUS bar's Donchian band
+        prev_upper = df["Don_Upper"].shift(1)
+        prev_lower = df["Don_Lower"].shift(1)
+        df["Don_Breakout"] = 0
+        df.loc[close > prev_upper, "Don_Breakout"] =  1   # new 20-bar high
+        df.loc[close < prev_lower, "Don_Breakout"] = -1   # new 20-bar low
+    except Exception:
+        df["Don_Upper"]    = np.nan
+        df["Don_Lower"]    = np.nan
+        df["Don_Mid"]      = np.nan
+        df["Don_Breakout"] = 0
+
+    # ── Hull Moving Average — HMA (NEW — less lag than EMA, favored by quants) ─
+    try:
+        df["HMA_Fast"] = _hull_ma(close, HMA_FAST)
+        df["HMA_Slow"] = _hull_ma(close, HMA_SLOW)
+        df["HMA_Bull"] = (df["HMA_Fast"] > df["HMA_Slow"]).astype(int)
+        prev_hma_bull  = df["HMA_Bull"].shift(1)
+        df["HMA_Cross"] = 0
+        df.loc[(prev_hma_bull == 0) & (df["HMA_Bull"] == 1),  "HMA_Cross"] =  1
+        df.loc[(prev_hma_bull == 1) & (df["HMA_Bull"] == 0), "HMA_Cross"] = -1
+    except Exception:
+        df["HMA_Fast"]  = np.nan
+        df["HMA_Slow"]  = np.nan
+        df["HMA_Bull"]  = 0
+        df["HMA_Cross"] = 0
+
+    # ── Rolling VWAP (NEW — institutional price anchor, #1 intraday reference) ─
+    # Price above VWAP = institutions are net long at average cost or better
+    try:
+        if "Volume" in df.columns:
+            typical = (high + low + close) / 3.0
+            tp_vol   = typical * df["Volume"]
+            df["VWAP"] = (
+                tp_vol.rolling(VWAP_PERIOD).sum()
+                / df["Volume"].rolling(VWAP_PERIOD).sum()
+            )
+            df["VWAP_Bull"] = (close > df["VWAP"]).astype(int)
+        else:
+            df["VWAP"]      = np.nan
+            df["VWAP_Bull"] = 0
+    except Exception:
+        df["VWAP"]      = np.nan
+        df["VWAP_Bull"] = 0
 
     return df
 
@@ -303,6 +416,27 @@ def _detect_choch(df):
     # In uptrend, price breaks below swing low → CHoCH bearish
     choch[(trend == 1)  & (df["Close"] < df["Swing_Low"]  - BOS_ATR_THRESHOLD * atr)] = -1
     return choch
+
+
+def _wma(series, period):
+    """
+    Weighted Moving Average — linearly-weighted rolling mean.
+    More recent bars have higher weight. Foundation for HMA.
+    """
+    weights = np.arange(1, period + 1, dtype=float)
+    wsum    = weights.sum()
+    return series.rolling(period).apply(lambda x: np.dot(x, weights) / wsum, raw=True)
+
+
+def _hull_ma(series, period):
+    """
+    Hull Moving Average (HMA) — virtually lag-free trend indicator.
+    Formula: WMA(2 × WMA(n/2) − WMA(n),  √n)
+    Much faster response than EMA; doesn't overshoot like DEMA.
+    """
+    half   = max(2, period // 2)
+    sqrt_p = max(2, int(np.sqrt(period)))
+    return _wma(2 * _wma(series, half) - _wma(series, period), sqrt_p)
 
 
 def _classify_regime(df):
@@ -600,7 +734,7 @@ def get_current_indicators(df):
         "ema_cross":  int(latest.get("EMA_Cross", 0)),
         "prev_trend": int(prev.get("Trend", 0)),
         "regime":     latest.get("Regime", "RANGING"),
-        # ── NEW ──────────────────────────────────────────
+        # ── NEW: Wave 1 — SMC/ICT ──────────────────────────
         # SuperTrend
         "supertrend":          latest.get("SuperTrend"),
         "supertrend_dir":      int(latest.get("SuperTrend_Dir", 0)),
@@ -613,6 +747,34 @@ def get_current_indicators(df):
         "choch":      int(latest.get("CHoCH", 0)),
         "swing_high": latest.get("Swing_High"),
         "swing_low":  latest.get("Swing_Low"),
+        # ── NEW: Wave 2 — Institutional / Turtle ────────────
+        # Ichimoku Cloud
+        "ichi_tenkan":      latest.get("Ichi_Tenkan"),
+        "ichi_kijun":       latest.get("Ichi_Kijun"),
+        "ichi_senkou_a":    latest.get("Ichi_Senkou_A"),
+        "ichi_senkou_b":    latest.get("Ichi_Senkou_B"),
+        "ichi_cloud_bull":  int(latest.get("Ichi_Cloud_Bull", 0)),
+        "ichi_above_cloud": int(latest.get("Ichi_Above_Cloud", 0)),
+        "ichi_below_cloud": int(latest.get("Ichi_Below_Cloud", 0)),
+        "ichi_tk_bull":     int(latest.get("Ichi_TK_Bull", 0)),
+        "ichi_tk_cross":    int(latest.get("Ichi_TK_Cross", 0)),
+        "prev_ichi_tk_bull":int(prev.get("Ichi_TK_Bull", 0)),
+        # Parabolic SAR
+        "psar":       latest.get("PSAR"),
+        "psar_dir":   int(latest.get("PSAR_Dir", 0)),
+        "psar_flip":  int(latest.get("PSAR_Flip", 0)),
+        # Donchian Channel
+        "don_upper":    latest.get("Don_Upper"),
+        "don_lower":    latest.get("Don_Lower"),
+        "don_breakout": int(latest.get("Don_Breakout", 0)),
+        # Hull MA
+        "hma_fast":  latest.get("HMA_Fast"),
+        "hma_slow":  latest.get("HMA_Slow"),
+        "hma_bull":  int(latest.get("HMA_Bull", 0)),
+        "hma_cross": int(latest.get("HMA_Cross", 0)),
+        # VWAP
+        "vwap":      latest.get("VWAP"),
+        "vwap_bull": int(latest.get("VWAP_Bull", 0)),
     }
 
     if result["trend"] == 1:

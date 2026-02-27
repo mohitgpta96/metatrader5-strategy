@@ -158,7 +158,6 @@ def scan_stocks(tickers=None):
     print(f"  Got daily data for {sum(1 for t in tickers if stock_data.get(t) is not None)}/{len(tickers)} stocks")
 
     # Fetch weekly data for MTF confirmation (trend bias filter)
-    # Uses 2y period to ensure enough bars for all indicators (EMA50 needs 50+ bars)
     weekly_data = {}
     try:
         weekly_data = fetch_stocks(tickers, interval="1wk")
@@ -167,23 +166,62 @@ def scan_stocks(tickers=None):
     except Exception as e:
         print(f"  [WARN] Weekly MTF fetch failed: {e}. Using daily only.")
 
+    # Fetch NIFTY50 for Relative Strength comparison
+    # RS > 1.0 = stock outperforming index over last 20 days (strong stock)
+    nifty_roc_20 = None
+    try:
+        nifty_df = fetch_single("^NSEI", period="1y", interval="1d")
+        if nifty_df is not None and len(nifty_df) >= 21:
+            nifty_roc_20 = float(
+                nifty_df["Close"].pct_change(20).iloc[-1]
+            )
+            print(f"  NIFTY50 20-day ROC: {nifty_roc_20:.2%} (RS benchmark)")
+    except Exception as e:
+        print(f"  [WARN] NIFTY RS benchmark failed: {e}")
+
     for ticker in tickers:
         df_daily  = stock_data.get(ticker)
-        df_weekly = weekly_data.get(ticker)   # None → falls back to daily trend in check_signal
+        df_weekly = weekly_data.get(ticker)
 
         if df_daily is None or df_daily.empty:
             continue
 
         name = get_display_name(ticker)
 
+        # Compute Relative Strength vs NIFTY50 (20-day ROC ratio)
+        rs_vs_nifty = 1.0   # neutral default
+        if nifty_roc_20 is not None and len(df_daily) >= 21:
+            try:
+                stock_roc_20 = float(df_daily["Close"].pct_change(20).iloc[-1])
+                # RS ratio: > 1.0 = outperforming, < 1.0 = underperforming
+                if abs(nifty_roc_20) > 0.0001:
+                    rs_vs_nifty = stock_roc_20 / abs(nifty_roc_20)
+                else:
+                    rs_vs_nifty = 1.0 if stock_roc_20 > 0 else 0.5
+            except Exception:
+                rs_vs_nifty = 1.0
+
+        # Add RS as a column so scoring can use it (via df metadata)
+        df_daily.attrs["rs_vs_nifty"] = rs_vs_nifty
+
         # Pass weekly as df_confirmation — check_signal uses it for confirmation_trend
         signal = check_signal(df_daily, df_confirmation=df_weekly, ticker=ticker)
         if signal:
+            # Boost score for stocks outperforming NIFTY50 (RS > 1.2 = strong stock)
+            if rs_vs_nifty > 1.2 and signal["direction"] == "BUY":
+                signal["signal_score"] = min(10, signal["signal_score"] + 1)
+                signal["rs_vs_nifty"] = round(rs_vs_nifty, 2)
+            elif rs_vs_nifty < 0.8 and signal["direction"] == "SELL":
+                signal["signal_score"] = min(10, signal["signal_score"] + 1)
+                signal["rs_vs_nifty"] = round(rs_vs_nifty, 2)
+            else:
+                signal["rs_vs_nifty"] = round(rs_vs_nifty, 2)
             signals.append(signal)
-            print(f"  SIGNAL: {signal['direction']} {name} at Rs {signal['entry']} (score={signal['signal_score']})")
+            print(f"  SIGNAL: {signal['direction']} {name} at Rs {signal['entry']} (score={signal['signal_score']}, RS={rs_vs_nifty:.2f})")
         else:
             opp = check_best_opportunity(df_daily, ticker=ticker)
             if opp:
+                opp["rs_vs_nifty"] = round(rs_vs_nifty, 2)
                 opportunity_signals.append(opp)
 
         status = check_trend_status(df_daily, ticker=ticker)

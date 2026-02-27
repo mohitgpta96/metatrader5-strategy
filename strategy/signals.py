@@ -1,45 +1,26 @@
 """
-Signal generation engine — Professional-grade multi-confirmation strategy.
+Signal generation engine — Full institutional-grade multi-confirmation strategy.
+
+Matches / exceeds: Zerodha Streak, Tradetron, TradingView top algos, Turtle CTAs.
 
 Signal Types (in priority order):
-  Type 1 - EMA Crossover + MACD confirmation:
-    BUY:  EMA20 crosses above EMA50 + RSI 45-70 + MACD hist positive
-    SELL: EMA20 crosses below EMA50 + RSI 30-55 + MACD hist negative
-
-  Type 2 - BOS/CHoCH (Break of Structure / Change of Character):
-    BOS  BUY:  Uptrend + close breaks above prev swing high   → trend continuation
-    BOS  SELL: Downtrend + close breaks below prev swing low  → trend continuation
-    CHoCH BUY: Downtrend + close breaks above swing high      → early reversal
-    CHoCH SELL:Uptrend   + close breaks below swing low       → early reversal
-
-  Type 3 - SuperTrend Flip:
-    BUY:  SuperTrend direction just flipped to +1 (bullish)
-    SELL: SuperTrend direction just flipped to -1 (bearish)
-
-  Type 4 - Trend Pullback (price near EMA20, bouncing in trend direction):
-    BUY:  Bullish trend + near EMA20 + RSI 40-65 + MACD pos + bouncing up
-    SELL: Bearish trend + near EMA20 + RSI 35-60 + MACD neg + bouncing down
-
-  Type 5 - FVG Retracement (price enters unfilled Fair Value Gap zone):
-    BUY:  Price in bullish FVG zone + bullish trend + RSI < 65
-    SELL: Price in bearish FVG zone + bearish trend + RSI > 35
+  Type 1 - EMA Crossover + MACD confirmation (existing)
+  Type 2 - BOS / CHoCH — market structure break (ICT/SMC)
+  Type 3 - SuperTrend Flip — ATR-based directional flip
+  Type 4 - Ichimoku TK Cross — Tenkan/Kijun cross above/below cloud
+  Type 5 - Donchian Breakout — Turtle Trading 20-bar high/low
+  Type 6 - Trend Pullback — price near EMA20, bouncing in trend
+  Type 7 - FVG Retracement — price in unfilled Fair Value Gap zone
 
 Signal Score (0-10, capped):
-  ADX strength        0-3 pts   (trend power)
-  Volume              0-2 pts   (market participation)
-  RSI position        0-2 pts   (momentum quality)
-  Trend alignment     0-2 pts   (timeframe confluence)
-  MACD confirmation   0-1 pts   (momentum backing)
-  SuperTrend align    0-1 pts   (directional filter)
-  StochRSI position   0-1 pts   (overbought/oversold sensitivity)
-  BOS confirmation    0-1 pts   (structure break confirmation)
-  FVG zone            0-1 pts   (institutional imbalance entry)
-  Divergence          0-2 pts   (RSI/MACD divergence = momentum building)
-  Regime              -1/0/+1   (RANGING=-1, SQUEEZE=+1)
-  Session             -2/0/+1   (THIN=-2, KILL_ZONE=+1)
-  Maximum = 10 (capped)
+  ADX              0-3   MACD             0-1   Ichimoku cloud  0-1
+  Volume           0-2   SuperTrend       0-1   PSAR direction  0-1
+  RSI              0-2   StochRSI K>D     0-1   VWAP position   0-1
+  Trend alignment  0-2   BOS confirm      0-1   HMA trend       0-1
+                         FVG in zone      0-1   Divergence      0-2
+  Regime -1/0/+1   Session -2/0/+1       Maximum = 10 (capped)
 
-Fallback (Type 3 opportunity) score HARD-CAPPED at 3.
+Fallback (Trend Opportunity) HARD-CAPPED at score 3.
 """
 import sys
 from pathlib import Path
@@ -188,7 +169,49 @@ def check_signal(df, df_confirmation=None, ticker=""):
             signal_type = "SuperTrend Flip"
 
     # ════════════════════════════════════════════════════════════════════════
-    # TYPE 4: Trend Pullback (most common type)
+    # TYPE 4: Ichimoku TK Cross (Japanese institutional method)
+    # Tenkan-sen crosses Kijun-sen WHILE price is on the right side of cloud.
+    # Best signal quality when cloud color matches direction.
+    # ════════════════════════════════════════════════════════════════════════
+    if direction is None:
+        ichi_tk_cross    = current.get("ichi_tk_cross", 0)
+        ichi_above_cloud = current.get("ichi_above_cloud", 0)
+        ichi_below_cloud = current.get("ichi_below_cloud", 0)
+        rsi = current["rsi"]
+
+        if (ichi_tk_cross == 1 and ichi_above_cloud == 1
+                and confirmation_trend >= 0 and 35 <= rsi <= 70):
+            direction   = "BUY"
+            signal_type = "Ichimoku TK Cross"
+
+        elif (ichi_tk_cross == -1 and ichi_below_cloud == 1
+                and confirmation_trend <= 0 and 30 <= rsi <= 65):
+            direction   = "SELL"
+            signal_type = "Ichimoku TK Cross"
+
+    # ════════════════════════════════════════════════════════════════════════
+    # TYPE 5: Donchian Breakout — Turtle Trading System
+    # Close breaks above 20-bar high (BUY) or below 20-bar low (SELL).
+    # Requires volume confirmation — one of the most proven systematic strategies.
+    # ════════════════════════════════════════════════════════════════════════
+    if direction is None:
+        don_breakout = current.get("don_breakout", 0)
+        rsi = current["rsi"]
+
+        if (don_breakout == 1 and confirmation_trend >= 0
+                and 40 <= rsi <= 75        # Not overbought at breakout
+                and vol_ratio is not None and vol_ratio >= 1.2):  # Volume surge
+            direction   = "BUY"
+            signal_type = "Donchian Breakout"
+
+        elif (don_breakout == -1 and confirmation_trend <= 0
+                and 25 <= rsi <= 60
+                and vol_ratio is not None and vol_ratio >= 1.2):
+            direction   = "SELL"
+            signal_type = "Donchian Breakout"
+
+    # ════════════════════════════════════════════════════════════════════════
+    # TYPE 6: Trend Pullback (most common type)
     # ════════════════════════════════════════════════════════════════════════
     if direction is None and len(df) >= 3:
         close    = current["close"]
@@ -219,7 +242,7 @@ def check_signal(df, df_confirmation=None, ticker=""):
                 signal_type = "Pullback Sell"
 
     # ════════════════════════════════════════════════════════════════════════
-    # TYPE 5: FVG Retracement
+    # TYPE 7: FVG Retracement
     # ════════════════════════════════════════════════════════════════════════
     if direction is None:
         rsi   = current["rsi"]
@@ -393,19 +416,39 @@ def _calculate_signal_score(direction, signal_type, adx, rsi, vol_ratio,
     if direction == "BUY" and bos == 1:    score += 1
     elif direction == "SELL" and bos == -1: score += 1
 
-    # ── FVG zone (0-1) ── NEW
+    # ── FVG zone (0-1) ──
     if fvg_zones:
         if direction == "BUY" and any(f["in_zone"] for f in fvg_zones.get("bull_fvg", [])):
             score += 1
         elif direction == "SELL" and any(f["in_zone"] for f in fvg_zones.get("bear_fvg", [])):
             score += 1
 
-    # ── Divergence (0-2) ── NEW  — strong momentum reversal signal
+    # ── Divergence (0-2) — strong momentum reversal signal ──
     if divergence:
         if direction == "BUY" and (divergence.get("bull_rsi") or divergence.get("bull_macd")):
             score += 2
         elif direction == "SELL" and (divergence.get("bear_rsi") or divergence.get("bear_macd")):
             score += 2
+
+    # ── Ichimoku cloud alignment (0-1) ── NEW Wave 2
+    if direction == "BUY" and current.get("ichi_above_cloud", 0) == 1:
+        score += 1
+    elif direction == "SELL" and current.get("ichi_below_cloud", 0) == 1:
+        score += 1
+
+    # ── Parabolic SAR direction (0-1) ── NEW
+    psar_dir = current.get("psar_dir", 0)
+    if direction == "BUY" and psar_dir == 1:   score += 1
+    elif direction == "SELL" and psar_dir == -1: score += 1
+
+    # ── VWAP position (0-1) ── NEW — institutional price anchor
+    if direction == "BUY" and current.get("vwap_bull", 0) == 1:   score += 1
+    elif direction == "SELL" and current.get("vwap_bull", 0) == 0: score += 1
+
+    # ── Hull MA trend (0-1) ── NEW — fast lag-free trend filter
+    hma_bull = current.get("hma_bull", 0)
+    if direction == "BUY" and hma_bull == 1:   score += 1
+    elif direction == "SELL" and hma_bull == 0: score += 1
 
     # ── Regime adjustment ──
     if regime == "RANGING":  score -= 1
