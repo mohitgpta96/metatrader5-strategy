@@ -44,5 +44,28 @@
     "commodity_signals": 0,
     "mcx_signals": 0,
     "stock_signals": 0
+  },
+  {
+    "timestamp": "2026-02-27T19:24:00.553515+00:00",
+    "markets_open": true,
+    "signals_found": 4,
+    "signals_sent": 4,
+    "sent_signals": [
+      "BUY Gold Futures (XAUUSD) (score=2)",
+      "BUY Silver Futures (XAGUSD) (score=2)",
+      "BUY Brent Crude Futures (score=2)",
+      "BUY Crude Oil Futures (WTI) (score=1)"
+    ],
+    "tracker": {
+      "checked": 6,
+      "tp1_hits": 0,
+      "tp2_hits": 0,
+      "sl_hits": 1,
+      "expired": 0,
+      "still_active": 5
+    },
+    "commodity_signals": 0,
+    "mcx_signals": 0,
+    "stock_signals": 0
   }
 ]
