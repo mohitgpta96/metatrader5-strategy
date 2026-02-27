@@ -41,11 +41,16 @@ RSI_BUY_MAX = 70
 RSI_SELL_MIN = 30
 RSI_SELL_MAX = 60
 
-# ATR multipliers for SL/TP
+# ATR multiplier for SL fallback (when no structure level available)
 SL_ATR_MULTIPLIER = 1.5
-TP1_ATR_MULTIPLIER = 2.0  # R:R = 1:1.33
-TP2_ATR_MULTIPLIER = 3.0  # R:R = 1:2.00
-TP3_ATR_MULTIPLIER = 4.5  # R:R = 1:3.00 (runner — only for score >= 7)
+SL_STRUCTURE_BUFFER = 0.3   # Buffer beyond swing high/low (in ATR units)
+SL_MAX_ATR = 2.0            # Hard cap: SL never farther than 2×ATR from entry
+
+# RR-based TP — guarantees minimum risk:reward at every target
+# TP = entry ± (multiplier × SL_distance)  →  always exact RR
+TP1_RR_MULTIPLIER = 2.0   # TP1 at 2×risk  → 1:2 RR guaranteed (was 1:1.33)
+TP2_RR_MULTIPLIER = 3.0   # TP2 at 3×risk  → 1:3 RR guaranteed
+TP3_RR_MULTIPLIER = 4.5   # TP3 at 4.5×risk → runner (score >= 7 only)
 
 # --- MACD Settings ---
 MACD_FAST = 12
@@ -55,6 +60,9 @@ MACD_SIGNAL_PERIOD = 9
 # --- Bollinger Bands ---
 BB_PERIOD = 20
 BB_STD = 2
+
+# --- News / Event Blackout ---
+NEWS_BLACKOUT_MINUTES = 30  # Block signals ±30 min around major events (NFP/FOMC/RBI)
 
 # --- Signal Quality Filters ---
 ADX_PERIOD = 14

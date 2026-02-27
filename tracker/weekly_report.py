@@ -83,12 +83,14 @@ def generate_weekly_report(days=7):
     buy_wins = sum(1 for s in buy_signals if s.get("pnl_at_close", 0) > 0)
     sell_wins = sum(1 for s in sell_signals if s.get("pnl_at_close", 0) > 0)
 
-    # By signal type (EMA Crossover vs Pullback)
-    by_sig_type = defaultdict(lambda: {"wins": 0, "losses": 0, "total": 0})
+    # By signal type (EMA Crossover vs Pullback etc.)
+    by_sig_type = defaultdict(lambda: {"wins": 0, "losses": 0, "total": 0, "pnl": 0.0})
     for s in resolved:
         st = s.get("signal_type", "Unknown")
         by_sig_type[st]["total"] += 1
-        if s.get("pnl_at_close", 0) > 0:
+        pnl = s.get("pnl_at_close", 0)
+        by_sig_type[st]["pnl"] += pnl
+        if pnl > 0:
             by_sig_type[st]["wins"] += 1
         else:
             by_sig_type[st]["losses"] += 1
@@ -164,15 +166,25 @@ def generate_weekly_report(days=7):
             lines.append(f"{label}: {data['total']} trades | {wr:.0f}% win | P&L: {data['pnl']:+.2f}")
         lines.append("")
 
-    # By signal type
+    # By signal type — sorted by win rate descending
     if by_sig_type:
         lines.extend([
-            "BY SIGNAL TYPE",
+            "BY SIGNAL TYPE (best → worst)",
             "-" * 35,
         ])
-        for st, data in sorted(by_sig_type.items()):
+        sorted_sig_types = sorted(
+            by_sig_type.items(),
+            key=lambda x: x[1]["wins"] / x[1]["total"] if x[1]["total"] > 0 else 0,
+            reverse=True,
+        )
+        for st, data in sorted_sig_types:
             wr = data["wins"] / data["total"] * 100 if data["total"] > 0 else 0
-            lines.append(f"{st}: {data['total']} trades | {wr:.0f}% win")
+            flag = " ⚠ BELOW 65%" if data["total"] >= 3 and wr < 65 else ""
+            lines.append(
+                f"{st:<25} {data['total']:>2} trades | "
+                f"{data['wins']}W {data['losses']}L | "
+                f"{wr:>5.1f}% win | P&L: {data['pnl']:+.2f}{flag}"
+            )
         lines.append("")
 
     # Top instruments
@@ -263,18 +275,18 @@ def generate_weekly_report(days=7):
     if total_resolved == 0:
         lines.append("No resolved trades yet. Keep monitoring.")
     elif win_rate >= 70 and profit_factor >= 2.0:
-        lines.append("EXCELLENT! Strategy performing well.")
-        lines.append("Filters are working. Continue with same settings.")
-    elif win_rate >= 55 and profit_factor >= 1.3:
-        lines.append("GOOD. Strategy has a positive edge.")
-        lines.append("Consider keeping current filters.")
-    elif win_rate >= 45 and profit_factor >= 1.0:
-        lines.append("AVERAGE. Strategy is marginally profitable.")
-        lines.append("May need tighter filters or higher MIN_SIGNAL_SCORE.")
+        lines.append("EXCELLENT! Win rate above 70% with strong profit factor.")
+        lines.append("Strategy is performing at target. Keep current settings.")
+    elif win_rate >= 65 and profit_factor >= 1.5:
+        lines.append("ON TARGET. Win rate in the 65-70% target range.")
+        lines.append("Continue monitoring. Maintain current filters.")
+    elif win_rate >= 55 and profit_factor >= 1.2:
+        lines.append("BELOW TARGET. Win rate under 65% — needs improvement.")
+        lines.append("Review signal types flagged above. Raise MIN_SIGNAL_SCORE.")
     else:
-        lines.append("NEEDS WORK. Strategy is currently losing.")
-        lines.append("Consider: Higher ADX threshold, higher MIN_SIGNAL_SCORE,")
-        lines.append("or avoiding certain instruments/directions.")
+        lines.append("CRITICAL. Win rate well below 65% target.")
+        lines.append("Action needed: Disable low-performing signal types,")
+        lines.append("raise ADX threshold to 25+, MIN_SIGNAL_SCORE to 6+.")
     lines.append("")
 
     # Suggestions based on data
@@ -353,16 +365,16 @@ def _generate_suggestions(win_rate, pf, by_type, by_sig_type,
                 labels = {"commodity": "Commodities", "mcx_commodity": "MCX", "stock": "Indian Stocks"}
                 suggestions.append(f"{labels.get(t, t)} has low win rate ({wr:.0f}%). Consider skipping or using stricter filters.")
 
-    # Signal type analysis
+    # Signal type analysis — minimum target 65%
     for st, data in by_sig_type.items():
         if data["total"] >= 3:
             wr = data["wins"] / data["total"] * 100
-            if wr < 40:
-                suggestions.append(f"'{st}' signal type has {wr:.0f}% win rate. May need parameter adjustment.")
+            if wr < 65:
+                suggestions.append(f"'{st}' signal type has {wr:.0f}% win rate (target: 65%+). Consider tighter filters or disabling this type.")
 
     # General
-    if win_rate < 50:
-        suggestions.append("Overall win rate below 50%. Consider: higher ADX threshold (25+), higher signal score (7+), or reducing pullback signals.")
+    if win_rate < 65:
+        suggestions.append(f"Overall win rate {win_rate:.1f}% is below the 65% target. Consider: higher ADX threshold (25+), MIN_SIGNAL_SCORE (6+), or disabling signal types with <65% win rate above.")
 
     if not suggestions:
         suggestions.append("Strategy performing within expectations. Continue monitoring.")

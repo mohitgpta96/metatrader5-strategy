@@ -40,6 +40,7 @@ from strategy.indicators import (
 )
 from strategy.position_sizing import calculate_trade_levels
 from config.instruments import get_display_name, get_instrument_type
+from scanner.news_filter import is_news_blackout
 
 
 def check_signal(df, df_confirmation=None, ticker=""):
@@ -83,6 +84,13 @@ def check_signal(df, df_confirmation=None, ticker=""):
     if regime == "VOLATILE":
         return None
 
+    # Filter 4: News/Event blackout — Gap 3 fix
+    # Block signals ±30 min around NFP, FOMC, RBI MPC
+    news_blocked, news_reason = is_news_blackout(ticker=ticker)
+    if news_blocked:
+        print(f"  [NEWS BLOCK] {ticker}: {news_reason}")
+        return None
+
     # ── Higher timeframe confirmation trend ───────────────────────────────────
     confirmation_trend = 0
     if df_confirmation is not None:
@@ -94,8 +102,9 @@ def check_signal(df, df_confirmation=None, ticker=""):
         confirmation_trend = current["trend"]
 
     # ── Standalone detectors (called once, used in all types + scoring) ───────
-    fvg_zones  = detect_fair_value_gaps(df)
-    divergence = detect_divergence(df)
+    fvg_zones    = detect_fair_value_gaps(df)
+    order_blocks = detect_order_blocks(df)
+    divergence   = detect_divergence(df)
 
     # ── MACD state ────────────────────────────────────────────────────────────
     macd_hist      = current.get("macd_hist")
@@ -263,6 +272,65 @@ def check_signal(df, df_confirmation=None, ticker=""):
             direction   = "SELL"
             signal_type = "FVG Sell"
 
+    # ════════════════════════════════════════════════════════════════════════
+    # TYPE 8: Fibonacci Retracement Entry (Learn2Trade primary method)
+    # Price pulls back to 38.2%, 50%, or 61.8% Fib level within an established trend.
+    # ════════════════════════════════════════════════════════════════════════
+    if direction is None:
+        fib_dir, fib_name = _detect_fib_retracement(current)
+        rsi = current["rsi"]
+        if (fib_dir == "BUY"
+                and confirmation_trend >= 0
+                and 35 <= rsi <= 65
+                and (not macd_available or macd_bullish)):
+            direction   = "BUY"
+            signal_type = fib_name
+        elif (fib_dir == "SELL"
+                and confirmation_trend <= 0
+                and 35 <= rsi <= 65
+                and (not macd_available or macd_bearish)):
+            direction   = "SELL"
+            signal_type = fib_name
+
+    # ════════════════════════════════════════════════════════════════════════
+    # TYPE 9: Break + Retest (FXPremiere #1 setup)
+    # After a BOS break, price returns to retest the broken structure level.
+    # ════════════════════════════════════════════════════════════════════════
+    if direction is None:
+        br_dir = _detect_break_retest(df, current)
+        rsi = current["rsi"]
+        if (br_dir == "BUY"
+                and 35 <= rsi <= 65
+                and (not macd_available or macd_bullish)):
+            direction   = "BUY"
+            signal_type = "Break+Retest"
+        elif (br_dir == "SELL"
+                and 35 <= rsi <= 65
+                and (not macd_available or macd_bearish)):
+            direction   = "SELL"
+            signal_type = "Break+Retest"
+
+    # ════════════════════════════════════════════════════════════════════════
+    # TYPE 10: Liquidity Sweep + Reclaim (FXPremiere #2 setup)
+    # Institutional stop hunt: price wicks beyond swing level then reclaims it.
+    # RSI gates loose by design — sweeps occur in RSI-extreme conditions.
+    # ════════════════════════════════════════════════════════════════════════
+    if direction is None:
+        liq_dir = _detect_liquidity_sweep(df, current)
+        rsi = current["rsi"]
+        if (liq_dir == "BUY"
+                and confirmation_trend >= 0
+                and rsi < 60
+                and (not macd_available or macd_bullish)):
+            direction   = "BUY"
+            signal_type = "Liquidity Sweep"
+        elif (liq_dir == "SELL"
+                and confirmation_trend <= 0
+                and rsi > 40
+                and (not macd_available or macd_bearish)):
+            direction   = "SELL"
+            signal_type = "Liquidity Sweep"
+
     if direction is None:
         return None
 
@@ -272,7 +340,12 @@ def check_signal(df, df_confirmation=None, ticker=""):
 
     # ── Score ─────────────────────────────────────────────────────────────────
     inst_type = get_instrument_type(ticker)
-    session   = get_session_quality() if inst_type in ("commodity", "mcx_commodity") else "NORMAL"
+    if inst_type in ("commodity", "mcx_commodity"):
+        session = get_session_quality(market_type="commodity")
+    elif inst_type == "stock":
+        session = get_session_quality(market_type="stock")
+    else:
+        session = "NORMAL"
 
     score = _calculate_signal_score(
         direction=direction,
@@ -285,18 +358,31 @@ def check_signal(df, df_confirmation=None, ticker=""):
         regime=regime,
         session=session,
         fvg_zones=fvg_zones,
+        order_blocks=order_blocks,
         divergence=divergence,
     )
 
     if score < MIN_SIGNAL_SCORE:
         return None
 
+    # ── Gap 5: Zone-based entry price ────────────────────────────────────────
+    # For zone/level-based signals, provide the zone level as a LIMIT entry.
+    # For momentum/breakout signals, use current close as MARKET entry.
+    ideal_entry, entry_type = _get_ideal_entry(
+        signal_type=signal_type,
+        direction=direction,
+        current=current,
+        fvg_zones=fvg_zones,
+    )
+
     trade = calculate_trade_levels(
         ticker=ticker,
-        entry_price=current["close"],
+        entry_price=ideal_entry,
         atr=current["atr"],
         direction=direction,
         signal_score=score,
+        swing_high=current.get("swing_high"),
+        swing_low=current.get("swing_low"),
     )
     if trade is None:
         return None
@@ -338,13 +424,15 @@ def check_signal(df, df_confirmation=None, ticker=""):
         "bos":             current.get("bos", 0),
         "choch":           current.get("choch", 0),
         "divergence":      divergence,
+        "entry_type":      entry_type,   # "MARKET" or "LIMIT"
     }
     return signal
 
 
 def _calculate_signal_score(direction, signal_type, adx, rsi, vol_ratio,
                              confirmation_trend, current, regime="RANGING",
-                             session="NORMAL", fvg_zones=None, divergence=None):
+                             session="NORMAL", fvg_zones=None, order_blocks=None,
+                             divergence=None):
     """
     Calculate signal quality score (0-10, capped).
 
@@ -422,6 +510,21 @@ def _calculate_signal_score(direction, signal_type, adx, rsi, vol_ratio,
             score += 1
         elif direction == "SELL" and any(f["in_zone"] for f in fvg_zones.get("bear_fvg", [])):
             score += 1
+
+    # ── Order Block zone (0-1) ── institutional accumulation/distribution
+    if order_blocks:
+        if direction == "BUY" and any(ob["in_zone"] for ob in order_blocks.get("bull_ob", [])):
+            score += 1
+        elif direction == "SELL" and any(ob["in_zone"] for ob in order_blocks.get("bear_ob", [])):
+            score += 1
+
+    # ── Break+Retest bonus (0-1) ── structural confirmation
+    if signal_type and "Break+Retest" in signal_type:
+        score += 1
+
+    # ── Fib 61.8% bonus (0-1) ── golden ratio — strongest retracement level
+    if signal_type and "Fib 61%" in signal_type:
+        score += 1
 
     # ── Divergence (0-2) — strong momentum reversal signal ──
     if divergence:
@@ -549,7 +652,12 @@ def check_best_opportunity(df, ticker=""):
     score = min(3, score)
 
     inst_type = get_instrument_type(ticker)
-    session   = get_session_quality() if inst_type in ("commodity", "mcx_commodity") else "NORMAL"
+    if inst_type in ("commodity", "mcx_commodity"):
+        session = get_session_quality(market_type="commodity")
+    elif inst_type == "stock":
+        session = get_session_quality(market_type="stock")
+    else:
+        session = "NORMAL"
 
     if session == "THIN":
         return None
@@ -597,6 +705,216 @@ def check_best_opportunity(df, ticker=""):
         "sl_distance":     trade["sl_distance"],
         "was_capped":      trade["was_capped"],
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Gap 5: Entry type + ideal entry price
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Signal types that need immediate MARKET entry (breakout / momentum)
+_MARKET_ENTRY_TYPES = frozenset({
+    "EMA Crossover",
+    "BOS Bullish", "BOS Bearish",
+    "CHoCH Bullish", "CHoCH Bearish",
+    "SuperTrend Flip",
+    "Ichimoku TK Cross",
+    "Donchian Breakout",
+    "Liquidity Sweep",
+})
+
+
+def _get_ideal_entry(signal_type, direction, current, fvg_zones):
+    """
+    Determine entry price and entry type for a signal.
+
+    MARKET entries: breakout / momentum signals — enter at current close.
+    LIMIT entries:  zone / level-based signals — enter at the zone level
+                    for a tighter SL and better RR.
+
+    Returns:
+        (entry_price: float, entry_type: str)  — entry_type is "MARKET" or "LIMIT"
+    """
+    close = current["close"]
+
+    # Breakout / momentum → always MARKET
+    if signal_type in _MARKET_ENTRY_TYPES:
+        return close, "MARKET"
+
+    # Pullback → limit at EMA20 (the bounce zone)
+    if signal_type in ("Pullback Buy", "Pullback Sell"):
+        ema = current.get("ema_fast")
+        if ema is not None and not pd.isna(ema):
+            return round(ema, 4), "LIMIT"
+        return close, "MARKET"
+
+    # FVG → limit at middle of the unfilled gap
+    if signal_type in ("FVG Buy", "FVG Sell"):
+        fvg_key = "bull_fvg" if signal_type == "FVG Buy" else "bear_fvg"
+        in_zone  = [f for f in fvg_zones.get(fvg_key, []) if f["in_zone"]]
+        if in_zone:
+            z = in_zone[0]
+            mid = (z["low"] + z["high"]) / 2
+            return round(mid, 4), "LIMIT"
+        return close, "MARKET"
+
+    # Fibonacci → already filtered to within 0.3×ATR of the level; use close
+    if "Fib" in (signal_type or ""):
+        return close, "LIMIT"
+
+    # Break+Retest → limit at the broken structural level (close is near it)
+    if signal_type == "Break+Retest":
+        return close, "LIMIT"
+
+    # Default: MARKET
+    return close, "MARKET"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Helper detectors for Types 8, 9, 10
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _detect_fib_retracement(current):
+    """
+    Fibonacci Retracement Entry (Type 8).
+
+    Uses swing_high / swing_low from current indicators.
+    Fib levels: 38.2%, 50%, 61.8% of the recent swing range.
+    Tolerance: within 0.3×ATR of the level.
+    Requires swing range ≥ 1.5×ATR (meaningful swing).
+
+    Returns: (direction, signal_type_name) or (None, None)
+    """
+    swing_high = current.get("swing_high")
+    swing_low  = current.get("swing_low")
+    atr        = current.get("atr")
+    close      = current["close"]
+    trend      = current.get("trend", 0)
+
+    if (swing_high is None or swing_low is None or atr is None
+            or pd.isna(swing_high) or pd.isna(swing_low)
+            or pd.isna(atr) or atr == 0):
+        return None, None
+
+    swing_range = swing_high - swing_low
+    if swing_range < 1.5 * atr:
+        return None, None
+
+    tolerance = 0.3 * atr
+
+    if trend == 1:
+        # Uptrend pullback: price retracing toward swing_low from swing_high
+        levels = [
+            (swing_high - 0.618 * swing_range, "Fib 61% Pullback"),
+            (swing_high - 0.500 * swing_range, "Fib 50% Pullback"),
+            (swing_high - 0.382 * swing_range, "Fib 38% Pullback"),
+        ]
+        for level_price, level_name in levels:
+            if abs(close - level_price) <= tolerance:
+                return "BUY", level_name
+
+    elif trend == -1:
+        # Downtrend bounce: price retracing toward swing_high from swing_low
+        levels = [
+            (swing_low + 0.618 * swing_range, "Fib 61% Bounce"),
+            (swing_low + 0.500 * swing_range, "Fib 50% Bounce"),
+            (swing_low + 0.382 * swing_range, "Fib 38% Bounce"),
+        ]
+        for level_price, level_name in levels:
+            if abs(close - level_price) <= tolerance:
+                return "SELL", level_name
+
+    return None, None
+
+
+def _detect_break_retest(df, current):
+    """
+    Break + Retest (Type 9 — FXPremiere #1 setup).
+
+    Looks back 3–10 bars for a BOS event. Once a structural level breaks,
+    price often returns to retest that level before continuing.
+
+    Bull BOS (BOS=1): broken level = that bar's Swing_High → now acts as support
+    Bear BOS (BOS=-1): broken level = that bar's Swing_Low → now acts as resistance
+
+    Returns: "BUY", "SELL", or None
+    """
+    if "BOS" not in df.columns or "Swing_High" not in df.columns:
+        return None
+
+    atr   = current.get("atr")
+    close = current["close"]
+
+    if atr is None or pd.isna(atr) or atr == 0:
+        return None
+
+    n         = len(df)
+    tolerance = 0.4 * atr
+
+    # Scan bars from 3 to 10 candles ago
+    scan_start = max(0, n - 10 - 1)
+    scan_end   = max(0, n - 3)
+
+    for i in range(scan_end - 1, scan_start - 1, -1):
+        bos_val = df["BOS"].iloc[i]
+
+        if bos_val == 1:
+            # Bull BOS: broken resistance (swing high) → now support
+            broken_level = df["Swing_High"].iloc[i]
+            if pd.isna(broken_level):
+                continue
+            # Retesting from above: price near the level, still above it
+            if abs(close - broken_level) <= tolerance and current.get("trend", 0) == 1:
+                return "BUY"
+
+        elif bos_val == -1:
+            # Bear BOS: broken support (swing low) → now resistance
+            broken_level = df["Swing_Low"].iloc[i]
+            if pd.isna(broken_level):
+                continue
+            # Retesting from below: price near the level, still below it
+            if abs(close - broken_level) <= tolerance and current.get("trend", 0) == -1:
+                return "SELL"
+
+    return None
+
+
+def _detect_liquidity_sweep(df, current):
+    """
+    Liquidity Sweep + Reclaim (Type 10 — FXPremiere #2 setup).
+
+    Institutional stop hunt: price wicks beyond a key swing level then closes back inside.
+
+    Bullish sweep: current Low dipped below Swing_Low by 0.2–1.5×ATR,
+                   but Close reclaimed above Swing_Low.
+    Bearish sweep: current High spiked above Swing_High by 0.2–1.5×ATR,
+                   but Close reclaimed below Swing_High.
+
+    Returns: "BUY", "SELL", or None
+    """
+    swing_high = current.get("swing_high")
+    swing_low  = current.get("swing_low")
+    atr        = current.get("atr")
+
+    if (swing_high is None or swing_low is None or atr is None
+            or pd.isna(swing_high) or pd.isna(swing_low)
+            or pd.isna(atr) or atr == 0):
+        return None
+
+    current_low   = current["low"]
+    current_high  = current["high"]
+    current_close = current["close"]
+
+    # Bullish sweep: wick below swing low, close reclaims above
+    sweep_depth = swing_low - current_low
+    if 0.2 * atr <= sweep_depth <= 1.5 * atr and current_close > swing_low:
+        return "BUY"
+
+    # Bearish sweep: wick above swing high, close reclaims below
+    sweep_height = current_high - swing_high
+    if 0.2 * atr <= sweep_height <= 1.5 * atr and current_close < swing_high:
+        return "SELL"
+
+    return None
 
 
 if __name__ == "__main__":

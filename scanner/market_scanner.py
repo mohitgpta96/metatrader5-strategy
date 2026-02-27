@@ -312,6 +312,10 @@ def scan_all():
 
     all_signals = commodity_signals + mcx_signals + stock_signals
 
+    # --- CORRELATION FILTER (Gap 4 fix) ---
+    # Remove duplicate correlated signals — keep only the highest-scoring one per group
+    all_signals = _apply_correlation_filter(all_signals)
+
     # --- GUARANTEED MINIMUM 3 SIGNALS ---
     # If strict signals < 3, fill up with best opportunity signals
     if len(all_signals) < 3:
@@ -438,6 +442,61 @@ def _get_relevant_geo(ticker, sig_type, geo_events):
         if match:
             relevant.append(f"{ev['event'].title()} ({ev['mentions']}x in news)")
     return relevant[:2]
+
+
+def _apply_correlation_filter(signals):
+    """
+    Remove correlated duplicate signals — keep only the highest-scoring one
+    per correlation group per direction.
+
+    Why: Sending Gold BUY + Silver BUY in the same top-4 means the subscriber
+    effectively doubles risk on the same macro move. One NFP miss wipes both.
+
+    Correlation groups:
+      Precious metals : GC=F, SI=F, PL=F  (Gold, Silver, Platinum)
+      Energy          : CL=F, BZ=F, NG=F  (Crude, Brent, NatGas)
+      Copper          : HG=F              (standalone, no group)
+      Stocks          : each ticker is its own instrument (no filter)
+
+    Rule: within a group + direction, keep the signal with the highest score.
+    """
+    # Define groups by ticker
+    CORR_GROUPS = [
+        {"GC=F", "SI=F", "PL=F"},   # Precious metals
+        {"CL=F", "BZ=F", "NG=F"},   # Energy
+    ]
+
+    def _group_id(ticker):
+        """Return group index (0-based) or None if not in any group."""
+        for idx, group in enumerate(CORR_GROUPS):
+            if ticker in group:
+                return idx
+        return None
+
+    # Separate signals into grouped and ungrouped
+    # Key: (group_id, direction) → best signal so far
+    best_in_group = {}
+    ungrouped = []
+
+    for sig in signals:
+        gid = _group_id(sig.get("ticker", ""))
+        if gid is None:
+            ungrouped.append(sig)
+            continue
+
+        key = (gid, sig["direction"])
+        existing = best_in_group.get(key)
+        if existing is None or sig.get("signal_score", 0) > existing.get("signal_score", 0):
+            best_in_group[key] = sig
+
+    filtered = ungrouped + list(best_in_group.values())
+
+    removed = len(signals) - len(filtered)
+    if removed > 0:
+        print(f"\n  [Correlation filter] Removed {removed} correlated duplicate(s). "
+              f"{len(filtered)} signal(s) remain.")
+
+    return filtered
 
 
 def _get_top_headline(ticker, sig_type, top_headlines):

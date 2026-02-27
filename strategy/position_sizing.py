@@ -135,37 +135,75 @@ def _get_risk_percent_for_score(signal_score):
         return RISK_PERCENT_LOW
 
 
-def calculate_trade_levels(ticker, entry_price, atr, direction="BUY", signal_score=5):
+def calculate_trade_levels(ticker, entry_price, atr, direction="BUY", signal_score=5,
+                           swing_high=None, swing_low=None):
     """
     Calculate complete trade levels: SL, TP1, TP2, TP3, and lot size.
 
-    TP3 is added for high-score signals (score >= 7) as a runner target.
-    Position size is scaled to signal confidence via signal_score.
+    SL Method (Gap 1 fix — structure-based):
+      BUY:  SL = swing_low  - 0.3×ATR (buffer below structure)
+      SELL: SL = swing_high + 0.3×ATR (buffer above structure)
+      Fallback to 1.5×ATR if structure not available or too far (cap: 2×ATR)
+
+    TP Method (Gap 2 fix — RR-guaranteed):
+      TP1 = entry ± 2.0 × SL_distance  →  1:2 RR guaranteed
+      TP2 = entry ± 3.0 × SL_distance  →  1:3 RR guaranteed
+      TP3 = entry ± 4.5 × SL_distance  →  runner (score >= 7 only)
 
     Args:
-        ticker: yfinance ticker
-        entry_price: current/entry price
-        atr: ATR value for the instrument
-        direction: "BUY" or "SELL"
+        ticker:      yfinance ticker
+        entry_price: entry price (market or limit zone level)
+        atr:         ATR value for the instrument
+        direction:   "BUY" or "SELL"
         signal_score: 1-10 quality score (affects position sizing)
+        swing_high:  recent swing high (for SELL structure SL)
+        swing_low:   recent swing low  (for BUY structure SL)
 
     Returns:
-        dict with all trade parameters
+        dict with all trade parameters, or None if calculation fails
     """
+    import math
+    import pandas as pd
     from config.settings import (
-        SL_ATR_MULTIPLIER, TP1_ATR_MULTIPLIER, TP2_ATR_MULTIPLIER, TP3_ATR_MULTIPLIER,
+        SL_ATR_MULTIPLIER, SL_STRUCTURE_BUFFER, SL_MAX_ATR,
+        TP1_RR_MULTIPLIER, TP2_RR_MULTIPLIER, TP3_RR_MULTIPLIER,
     )
 
+    # ── Gap 1: Structure-based SL ─────────────────────────────────────────────
+    atr_sl_distance = SL_ATR_MULTIPLIER * atr
+    max_sl_distance = SL_MAX_ATR * atr
+
     if direction == "BUY":
-        sl  = entry_price - (SL_ATR_MULTIPLIER  * atr)
-        tp1 = entry_price + (TP1_ATR_MULTIPLIER * atr)
-        tp2 = entry_price + (TP2_ATR_MULTIPLIER * atr)
-        tp3 = entry_price + (TP3_ATR_MULTIPLIER * atr)   # runner target
+        atr_sl = entry_price - atr_sl_distance
+        sl = atr_sl  # default fallback
+        if swing_low is not None and not (isinstance(swing_low, float) and math.isnan(swing_low)):
+            struct_sl = swing_low - (SL_STRUCTURE_BUFFER * atr)
+            struct_dist = entry_price - struct_sl
+            if 0 < struct_dist <= max_sl_distance:
+                # Structure SL is valid and within cap: use it (tighter = better)
+                sl = struct_sl if struct_sl > atr_sl else atr_sl
     else:  # SELL
-        sl  = entry_price + (SL_ATR_MULTIPLIER  * atr)
-        tp1 = entry_price - (TP1_ATR_MULTIPLIER * atr)
-        tp2 = entry_price - (TP2_ATR_MULTIPLIER * atr)
-        tp3 = entry_price - (TP3_ATR_MULTIPLIER * atr)   # runner target
+        atr_sl = entry_price + atr_sl_distance
+        sl = atr_sl  # default fallback
+        if swing_high is not None and not (isinstance(swing_high, float) and math.isnan(swing_high)):
+            struct_sl = swing_high + (SL_STRUCTURE_BUFFER * atr)
+            struct_dist = struct_sl - entry_price
+            if 0 < struct_dist <= max_sl_distance:
+                sl = struct_sl if struct_sl < atr_sl else atr_sl
+
+    # ── Gap 2: RR-based TP — guaranteed minimum risk:reward ──────────────────
+    sl_distance = abs(entry_price - sl)
+    if sl_distance == 0:
+        return None
+
+    if direction == "BUY":
+        tp1 = entry_price + (TP1_RR_MULTIPLIER * sl_distance)
+        tp2 = entry_price + (TP2_RR_MULTIPLIER * sl_distance)
+        tp3 = entry_price + (TP3_RR_MULTIPLIER * sl_distance)
+    else:  # SELL
+        tp1 = entry_price - (TP1_RR_MULTIPLIER * sl_distance)
+        tp2 = entry_price - (TP2_RR_MULTIPLIER * sl_distance)
+        tp3 = entry_price - (TP3_RR_MULTIPLIER * sl_distance)
 
     # Score-scaled risk percent
     risk_pct = _get_risk_percent_for_score(signal_score)

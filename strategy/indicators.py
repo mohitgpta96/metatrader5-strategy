@@ -657,20 +657,35 @@ def detect_divergence(df, lookback=20):
 # Public: get current indicator snapshot + session quality
 # ─────────────────────────────────────────────────────────────────────────────
 
-def get_session_quality():
+def get_session_quality(market_type="commodity"):
     """
-    Classify current time into trading session quality for commodities (Gold/Crude).
+    Classify current time into trading session quality.
 
-    Kill zones (best signals):
-      London:   02:00-05:00 UTC = 07:30-10:30 IST
-      New York: 07:00-10:00 UTC = 12:30-15:30 IST
+    For commodities (Gold/Crude):
+      Kill zones: London 02:00-05:00 UTC, New York 07:00-10:00 UTC
+      Thin zone:  20:00-01:00 UTC (Asian dead zone)
 
-    Thin zone (worst):
-      20:00-01:00 UTC = 01:30-06:30 IST (Asian dead zone)
+    For NSE stocks:
+      Kill zone: 03:45-05:00 UTC = 09:15-10:30 IST (opening 75 min)
+      Thin zone: 09:30-10:00 UTC = 15:00-15:30 IST (last 30 min, choppy)
 
     Returns: "KILL_ZONE", "NORMAL", or "THIN"
     """
-    utc_hour = datetime.now(timezone.utc).hour
+    now = datetime.now(timezone.utc)
+    utc_hour = now.hour
+    utc_min  = now.minute
+    utc_time = utc_hour * 60 + utc_min   # minutes since midnight UTC
+
+    if market_type == "stock":
+        # NSE Kill Zone: 03:45–05:00 UTC = 09:15–10:30 IST
+        if 3 * 60 + 45 <= utc_time <= 5 * 60:
+            return "KILL_ZONE"
+        # NSE Thin: 09:30–10:00 UTC = 15:00–15:30 IST
+        if 9 * 60 + 30 <= utc_time <= 10 * 60:
+            return "THIN"
+        return "NORMAL"
+
+    # Commodity (default)
     if 2 <= utc_hour <= 4:
         return "KILL_ZONE"
     if 7 <= utc_hour <= 9:
