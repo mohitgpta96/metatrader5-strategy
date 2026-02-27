@@ -113,5 +113,19 @@
       "expired": 0,
       "still_active": 5
     }
+  },
+  {
+    "timestamp": "2026-02-27T23:58:45.857849+00:00",
+    "markets_open": false,
+    "signals_found": 0,
+    "signals_sent": 0,
+    "tracker": {
+      "checked": 5,
+      "tp1_hits": 0,
+      "tp2_hits": 0,
+      "sl_hits": 0,
+      "expired": 0,
+      "still_active": 5
+    }
   }
 ]

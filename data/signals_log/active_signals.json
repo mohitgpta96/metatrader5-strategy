@@ -30,8 +30,8 @@
     "lowest_price": 113.59,
     "max_favorable": 0.22,
     "max_adverse": 0.04,
-    "last_checked": "2026-02-27T23:01:29.043796+00:00",
-    "checks_count": 6,
+    "last_checked": "2026-02-27T23:58:46.822037+00:00",
+    "checks_count": 7,
     "pnl_at_close": 0.16
   },
   {
@@ -65,8 +65,8 @@
     "lowest_price": 5230.6,
     "max_favorable": 57.5,
     "max_adverse": 4.1,
-    "last_checked": "2026-02-27T23:01:29.043796+00:00",
-    "checks_count": 6,
+    "last_checked": "2026-02-27T23:58:46.822037+00:00",
+    "checks_count": 7,
     "pnl_at_close": 40.79
   },
   {
@@ -100,8 +100,8 @@
     "lowest_price": 91.5,
     "max_favorable": 2.59,
     "max_adverse": -0.75,
-    "last_checked": "2026-02-27T23:01:29.043796+00:00",
-    "checks_count": 6,
+    "last_checked": "2026-02-27T23:58:46.822037+00:00",
+    "checks_count": 7,
     "pnl_at_close": 2.1
   },
   {
@@ -170,8 +170,8 @@
     "lowest_price": 72.2,
     "max_favorable": 1.03,
     "max_adverse": -0.23,
-    "last_checked": "2026-02-27T23:01:29.043796+00:00",
-    "checks_count": 5,
+    "last_checked": "2026-02-27T23:58:46.822037+00:00",
+    "checks_count": 6,
     "pnl_at_close": 0.99
   },
   {
@@ -205,8 +205,8 @@
     "lowest_price": 93.64,
     "max_favorable": 0.58,
     "max_adverse": 0.28,
-    "last_checked": "2026-02-27T23:01:29.043796+00:00",
-    "checks_count": 4,
+    "last_checked": "2026-02-27T23:58:46.822037+00:00",
+    "checks_count": 5,
     "pnl_at_close": null
   }
 ]
