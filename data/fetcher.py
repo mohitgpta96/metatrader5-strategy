@@ -32,18 +32,17 @@ from config.instruments import (
     get_instrument_type,
 )
 
-# --- Import new fetchers (both fail silently if not available) ---
+# --- Import TwelveData fetcher (fails silently if not available) ---
 try:
-    from data.fetcher_twelvedata import fetch_comex_single_td, fetch_comex_all_td
+    from data.fetcher_twelvedata import (
+        fetch_comex_single_td, fetch_comex_all_td,
+        fetch_stock_single_td, fetch_stocks_td as _fetch_stocks_td,
+    )
     _TD_AVAILABLE = True
 except Exception:
     _TD_AVAILABLE = False
 
-try:
-    from data.fetcher_kite import fetch_stock_single_kite, fetch_stocks_kite as _fetch_stocks_kite
-    _KITE_AVAILABLE = True
-except Exception:
-    _KITE_AVAILABLE = False
+_KITE_AVAILABLE = False   # Zerodha Kite removed — TwelveData handles NSE stocks
 
 
 def fetch_single(ticker, period=None, interval=None):
@@ -69,12 +68,12 @@ def fetch_single(ticker, period=None, interval=None):
             return df
         # TwelveData failed → fall through to yfinance below
 
-    # NSE Stock → Zerodha Kite
-    if ticker.endswith(".NS") and _KITE_AVAILABLE:
-        df = fetch_stock_single_kite(ticker, interval=interval)
+    # NSE Stock → TwelveData
+    if ticker.endswith(".NS") and _TD_AVAILABLE:
+        df = fetch_stock_single_td(ticker, interval=interval)
         if df is not None:
             return df
-        # Kite failed → fall through to yfinance below
+        # TwelveData failed → fall through to yfinance below
 
     # yfinance fallback (always works)
     try:
@@ -180,13 +179,13 @@ def fetch_stocks(tickers=None, interval=None):
     tickers = tickers or ALL_STOCK_TICKERS
     interval = interval or STOCK_TIMEFRAME
 
-    # Zerodha Kite batch fetch
-    if _KITE_AVAILABLE:
-        results = _fetch_stocks_kite(tickers=tickers, interval=interval)
+    # TwelveData batch fetch for NSE stocks
+    if _TD_AVAILABLE:
+        results = _fetch_stocks_td(tickers=tickers, interval=interval)
         # Fill any missed tickers with yfinance
         missed = [t for t in tickers if t not in results]
         if missed:
-            print(f"  [Kite miss] Falling back to yfinance for {len(missed)} stocks...")
+            print(f"  [TD miss] Falling back to yfinance for {len(missed)} stocks...")
             yf_results = _yf_fetch_batch(missed, interval)
             results.update(yf_results)
         return results

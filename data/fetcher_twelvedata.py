@@ -388,6 +388,89 @@ def fetch_comex_all_td(interval: str = "1h") -> dict[str, pd.DataFrame]:
 
 
 # ---------------------------------------------------------------------------
+# NSE Stock support
+# ---------------------------------------------------------------------------
+
+def _yf_to_td_nse(yf_ticker: str):
+    """Convert yfinance NSE ticker to TwelveData symbol.
+    RELIANCE.NS  →  RELIANCE:NSE
+    M&M.NS       →  M&M:NSE
+    """
+    if not yf_ticker.endswith(".NS"):
+        return None
+    symbol = yf_ticker[:-3]   # strip .NS
+    return f"{symbol}:NSE"
+
+
+def fetch_stock_single_td(yf_ticker: str, interval: str = "1d") -> Optional[pd.DataFrame]:
+    """
+    Fetch OHLCV data for a single NSE stock via TwelveData.
+    Falls back to yfinance on any failure.
+    """
+    td_symbol = _yf_to_td_nse(yf_ticker)
+    if td_symbol is None:
+        return _fetch_from_yfinance(yf_ticker, interval)
+
+    api_key    = _get_api_key()
+    td_interval = _INTERVAL_MAP.get(interval, interval)
+
+    if api_key:
+        df = _fetch_from_twelvedata(yf_ticker, td_symbol, td_interval, api_key)
+        if df is not None:
+            _save_cache(df, yf_ticker, interval)
+            return df
+        logger.info("[TD] TwelveData failed for %s — falling back to yfinance", yf_ticker)
+
+    return _fetch_from_yfinance(yf_ticker, interval)
+
+
+def fetch_stocks_td(tickers=None, interval: str = "1d") -> dict:
+    """
+    Fetch OHLCV data for NSE stocks via TwelveData (fallback: yfinance).
+
+    Parameters
+    ----------
+    tickers : list of yfinance ticker strings (e.g. ['RELIANCE.NS', 'TCS.NS'])
+              Defaults to ALL_STOCK_TICKERS from config/instruments.py
+    interval : '1d' (default)
+
+    Returns
+    -------
+    dict mapping yfinance ticker → pd.DataFrame
+    """
+    if tickers is None:
+        from config.instruments import ALL_STOCK_TICKERS
+        tickers = ALL_STOCK_TICKERS
+
+    results: dict = {}
+    api_key = _get_api_key()
+    td_interval = _INTERVAL_MAP.get(interval, interval)
+    first_td_request = True
+
+    print(f"\n--- Fetching {len(tickers)} NSE stocks via TwelveData ---")
+
+    for yf_ticker in tickers:
+        td_symbol = _yf_to_td_nse(yf_ticker)
+
+        # Rate-limit sleep between TwelveData calls
+        if api_key and td_symbol and not first_td_request:
+            time.sleep(_TD_RATE_LIMIT_SLEEP)
+
+        df = fetch_stock_single_td(yf_ticker, interval=interval)
+
+        if api_key and td_symbol:
+            first_td_request = False
+
+        if df is not None:
+            results[yf_ticker] = df
+        else:
+            logger.warning("[TD] Could not fetch %s from any source", yf_ticker)
+
+    print(f"  Done — {len(results)}/{len(tickers)} stocks fetched")
+    return results
+
+
+# ---------------------------------------------------------------------------
 # Quick smoke-test when run directly
 # ---------------------------------------------------------------------------
 
