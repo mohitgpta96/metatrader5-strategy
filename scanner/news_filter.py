@@ -24,26 +24,34 @@ from config.settings import NEWS_BLACKOUT_MINUTES
 #   EST (Nov–Mar): 2 PM ET = 19:00 UTC
 #   EDT (Mar–Nov): 2 PM ET = 18:00 UTC
 # We use 18:30 UTC as the midpoint and a wide buffer to cover both.
+#
+# !! ANNUAL UPDATE REQUIRED — add next year's dates every January !!
+# Source: https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm
 FOMC_DATES = {
-    # 2025
+    # 2025 (complete)
     "2025-01-29", "2025-03-19", "2025-05-07", "2025-06-18",
     "2025-07-30", "2025-09-17", "2025-10-29", "2025-12-10",
-    # 2026
+    # 2026 (complete — verified 2026-02-28)
     "2026-01-28", "2026-03-18", "2026-04-29", "2026-06-17",
     "2026-07-29", "2026-09-16", "2026-10-28", "2026-12-09",
+    # 2027 — ADD IN JANUARY 2027 from federalreserve.gov
 }
 FOMC_UTC_HOUR   = 18
 FOMC_UTC_MINUTE = 30
 
 # ── RBI MPC dates — announcement day ─────────────────────────────────────────
 # RBI Governor announces around 10:00 AM IST = 04:30 UTC.
+#
+# !! ANNUAL UPDATE REQUIRED — add next year's dates every January !!
+# Source: https://www.rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx
 RBI_MPC_DATES = {
-    # 2025
+    # 2025 (complete)
     "2025-02-07", "2025-04-09", "2025-06-06",
     "2025-08-07", "2025-10-01", "2025-12-05",
-    # 2026
+    # 2026 (complete — verified 2026-02-28)
     "2026-02-07", "2026-04-03", "2026-06-05",
     "2026-08-07", "2026-10-09", "2026-12-04",
+    # 2027 — ADD IN JANUARY 2027 from rbi.org.in
 }
 RBI_UTC_HOUR   = 4
 RBI_UTC_MINUTE = 30

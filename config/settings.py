@@ -72,6 +72,18 @@ VOLUME_MIN_RATIO = 1.0       # Raised from 0.5 — require at least average volu
 MIN_SIGNAL_SCORE = 4         # Only send signals with score >= 4 (out of 10)
 CANDLE_BODY_MIN_RATIO = 0.35 # Body must be >= 35% of candle range (filter doji/spinning tops)
 
+# --- Disabled Signal Types ---
+# Add signal type names here to permanently disable them.
+# Weekly report flags types with <65% win rate — move them here to disable.
+# Valid names (exact match required):
+#   "EMA Crossover", "BOS Bullish", "BOS Bearish", "CHoCH Bullish", "CHoCH Bearish",
+#   "SuperTrend Flip", "Ichimoku TK Cross", "Donchian Breakout",
+#   "Pullback Buy", "Pullback Sell", "FVG Buy", "FVG Sell",
+#   "Fib 38% Pullback", "Fib 50% Pullback", "Fib 61% Pullback",
+#   "Fib 38% Bounce", "Fib 50% Bounce", "Fib 61% Bounce",
+#   "Break+Retest", "Liquidity Sweep", "Trend Opportunity"
+DISABLED_SIGNAL_TYPES = []  # Empty = all types active
+
 # --- Score-Scaled Position Sizing ---
 RISK_PERCENT_LOW = 0.5       # Score 1-5 (Trend Opportunity): half risk
 RISK_PERCENT_MID = 1.0       # Score 6-8 (normal signals): standard risk

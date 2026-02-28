@@ -32,7 +32,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from config.settings import (
     EMA_FAST, EMA_SLOW, RSI_PERIOD, ATR_PERIOD,
     ADX_MIN_THRESHOLD, VOLUME_MIN_RATIO, MIN_SIGNAL_SCORE,
-    CANDLE_BODY_MIN_RATIO,
+    CANDLE_BODY_MIN_RATIO, DISABLED_SIGNAL_TYPES,
 )
 from strategy.indicators import (
     add_indicators, get_current_indicators, get_session_quality,
@@ -334,6 +334,10 @@ def check_signal(df, df_confirmation=None, ticker=""):
     if direction is None:
         return None
 
+    # ── Disabled signal types gate (Step 3) ───────────────────────────────────
+    if DISABLED_SIGNAL_TYPES and signal_type in DISABLED_SIGNAL_TYPES:
+        return None
+
     # ── Volume filter ─────────────────────────────────────────────────────────
     if vol_ratio is not None and not pd.isna(vol_ratio) and vol_ratio < VOLUME_MIN_RATIO:
         return None
@@ -385,6 +389,12 @@ def check_signal(df, df_confirmation=None, ticker=""):
         swing_low=current.get("swing_low"),
     )
     if trade is None:
+        return None
+
+    # ── Step 4: Minimum 1:2 RR hard gate ─────────────────────────────────────
+    # TP calc already guarantees 1:2, but this explicit check is a safety net.
+    # If structure SL is somehow too close to TP1, reject the signal.
+    if trade.get("rr_tp1", 0) < 1.9:   # 1.9 = 1:2 with small float tolerance
         return None
 
     signal = {
