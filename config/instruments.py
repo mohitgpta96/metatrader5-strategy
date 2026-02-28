@@ -211,6 +211,17 @@ INDICES = {
     },
 }
 
+# --- Top 20 NSE Stocks (by market cap) — fetched via TwelveData ---
+# These 20 are scanned every 15 min via TwelveData (500 calls/day)
+# Remaining 80 are scanned via yFinance (free, no limit)
+NIFTY_TOP_20 = [
+    "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "INFY.NS", "ICICIBANK.NS",
+    "HINDUNILVR.NS", "ITC.NS", "SBIN.NS", "BHARTIARTL.NS", "KOTAKBANK.NS",
+    "LT.NS", "AXISBANK.NS", "BAJFINANCE.NS", "ASIANPAINT.NS", "MARUTI.NS",
+    "TITAN.NS", "SUNPHARMA.NS", "ULTRACEMCO.NS", "NTPC.NS", "WIPRO.NS",
+]
+NIFTY_TOP_20_SET = set(NIFTY_TOP_20)
+
 # --- NIFTY 50 Stocks ---
 NIFTY_50 = [
     "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "INFY.NS", "ICICIBANK.NS",

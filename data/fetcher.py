@@ -29,6 +29,7 @@ from config.instruments import (
     ALL_COMMODITY_TICKERS,
     ALL_INDEX_TICKERS,
     ALL_STOCK_TICKERS,
+    NIFTY_TOP_20_SET,
     get_instrument_type,
 )
 
@@ -68,8 +69,8 @@ def fetch_single(ticker, period=None, interval=None):
             return df
         # TwelveData failed → fall through to yfinance below
 
-    # NSE Stock → TwelveData
-    if ticker.endswith(".NS") and _TD_AVAILABLE:
+    # NSE Stock → TwelveData (top 20 only), yFinance for remaining 80
+    if ticker.endswith(".NS") and _TD_AVAILABLE and ticker in NIFTY_TOP_20_SET:
         df = fetch_stock_single_td(ticker, interval=interval)
         if df is not None:
             return df
@@ -179,18 +180,31 @@ def fetch_stocks(tickers=None, interval=None):
     tickers = tickers or ALL_STOCK_TICKERS
     interval = interval or STOCK_TIMEFRAME
 
-    # TwelveData batch fetch for NSE stocks
+    # Split: Top 20 → TwelveData, Remaining 80 → yFinance (parallel)
     if _TD_AVAILABLE:
-        results = _fetch_stocks_td(tickers=tickers, interval=interval)
-        # Fill any missed tickers with yfinance
-        missed = [t for t in tickers if t not in results]
-        if missed:
-            print(f"  [TD miss] Falling back to yfinance for {len(missed)} stocks...")
-            yf_results = _yf_fetch_batch(missed, interval)
-            results.update(yf_results)
+        top20     = [t for t in tickers if t in NIFTY_TOP_20_SET]
+        remaining = [t for t in tickers if t not in NIFTY_TOP_20_SET]
+
+        results = {}
+
+        # Top 20 via TwelveData
+        if top20:
+            print(f"  [TD] Top {len(top20)} stocks via TwelveData...")
+            td_results = _fetch_stocks_td(tickers=top20, interval=interval)
+            results.update(td_results)
+            # Any TD misses → yFinance fallback
+            missed_td = [t for t in top20 if t not in td_results]
+            if missed_td:
+                results.update(_yf_fetch_batch(missed_td, interval))
+
+        # Remaining 80 via yFinance
+        if remaining:
+            print(f"  [YF] Remaining {len(remaining)} stocks via yFinance...")
+            results.update(_yf_fetch_batch(remaining, interval))
+
         return results
 
-    # Pure yfinance fallback
+    # Pure yfinance fallback (no TwelveData key)
     return _yf_fetch_batch(tickers, interval)
 
 
