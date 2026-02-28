@@ -1,6 +1,13 @@
 """
-Market data fetcher using yfinance.
-Downloads OHLCV data for all instruments and caches to CSV.
+Market data fetcher — unified router.
+
+Source priority:
+  COMEX/Futures  → TwelveData API  (fallback: yfinance)
+  NSE Stocks     → Zerodha Kite    (fallback: yfinance)
+  Indices        → yfinance only
+
+New sources degrade gracefully: if API key / credentials are missing,
+yfinance is used transparently with no code changes needed downstream.
 """
 import sys
 import time
@@ -25,9 +32,28 @@ from config.instruments import (
     get_instrument_type,
 )
 
+# --- Import new fetchers (both fail silently if not available) ---
+try:
+    from data.fetcher_twelvedata import fetch_comex_single_td, fetch_comex_all_td
+    _TD_AVAILABLE = True
+except Exception:
+    _TD_AVAILABLE = False
+
+try:
+    from data.fetcher_kite import fetch_stock_single_kite, fetch_stocks_kite as _fetch_stocks_kite
+    _KITE_AVAILABLE = True
+except Exception:
+    _KITE_AVAILABLE = False
+
 
 def fetch_single(ticker, period=None, interval=None):
-    """Fetch OHLCV data for a single ticker."""
+    """Fetch OHLCV data for a single ticker.
+
+    Routing:
+      COMEX futures (.e.g GC=F) → TwelveData → yfinance fallback
+      NSE stocks  (.NS)         → Zerodha Kite → yfinance fallback
+      Indices     (^NSEI etc.)  → yfinance directly
+    """
     inst_type = get_instrument_type(ticker)
 
     if interval is None:
@@ -36,20 +62,31 @@ def fetch_single(ticker, period=None, interval=None):
     if period is None:
         period = HISTORY_PERIOD_INTRADAY if interval in ("1m", "5m", "15m", "30m", "1h") else HISTORY_PERIOD_DAILY
 
+    # COMEX → TwelveData
+    if inst_type == "commodity" and _TD_AVAILABLE:
+        df = fetch_comex_single_td(ticker, interval=interval)
+        if df is not None:
+            return df
+        # TwelveData failed → fall through to yfinance below
+
+    # NSE Stock → Zerodha Kite
+    if ticker.endswith(".NS") and _KITE_AVAILABLE:
+        df = fetch_stock_single_kite(ticker, interval=interval)
+        if df is not None:
+            return df
+        # Kite failed → fall through to yfinance below
+
+    # yfinance fallback (always works)
     try:
         df = yf.download(ticker, period=period, interval=interval, progress=False, auto_adjust=True)
         if df.empty:
             print(f"  [WARN] No data for {ticker}")
             return None
 
-        # Flatten MultiIndex columns if present
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = df.columns.get_level_values(0)
-
-        # Ensure standard column names
         df.columns = [c.title() for c in df.columns]
 
-        # Cache to CSV
         safe_name = ticker.replace("=", "_").replace("^", "IDX_").replace(".", "_")
         cache_path = DATA_CACHE_DIR / f"{safe_name}_{interval}.csv"
         df.to_csv(cache_path)
@@ -82,8 +119,22 @@ def fetch_batch(tickers, period=None, interval="1d"):
 
 
 def fetch_commodities(interval=None):
-    """Fetch all commodity data (Gold, Silver, Crude)."""
+    """Fetch all commodity data — uses TwelveData batch if available."""
     interval = interval or PRIMARY_TIMEFRAME
+
+    # TwelveData batch fetch (faster — 1 request per ticker, no yfinance throttle)
+    if _TD_AVAILABLE:
+        results = fetch_comex_all_td(interval=interval)
+        # Fill any missed tickers with yfinance
+        for ticker in ALL_COMMODITY_TICKERS:
+            if ticker not in results:
+                print(f"  [TD miss] Falling back to yfinance for {ticker}...")
+                df = _yf_fetch(ticker, interval)
+                if df is not None:
+                    results[ticker] = df
+        return results
+
+    # Pure yfinance fallback
     results = {}
     for ticker in ALL_COMMODITY_TICKERS:
         print(f"  Fetching {ticker}...")
@@ -105,14 +156,49 @@ def fetch_indices(interval=None):
     return results
 
 
+def _yf_fetch(ticker, interval):
+    """Internal yfinance fetch — used as final fallback."""
+    period = HISTORY_PERIOD_INTRADAY if interval in ("1m","5m","15m","30m","1h") else HISTORY_PERIOD_DAILY
+    try:
+        df = yf.download(ticker, period=period, interval=interval, progress=False, auto_adjust=True)
+        if df.empty:
+            return None
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.get_level_values(0)
+        df.columns = [c.title() for c in df.columns]
+        safe_name = ticker.replace("=", "_").replace("^", "IDX_").replace(".", "_")
+        cache_path = DATA_CACHE_DIR / f"{safe_name}_{interval}.csv"
+        df.to_csv(cache_path)
+        return df
+    except Exception as e:
+        print(f"  [ERROR] yfinance fallback failed for {ticker}: {e}")
+        return None
+
+
 def fetch_stocks(tickers=None, interval=None):
-    """Fetch NIFTY 100 stock data. Returns dict of {ticker: DataFrame}."""
+    """Fetch NIFTY 100 stock data — uses Zerodha Kite if available."""
     tickers = tickers or ALL_STOCK_TICKERS
     interval = interval or STOCK_TIMEFRAME
-    results = {}
 
-    # Batch download for speed
-    print(f"  Fetching {len(tickers)} stocks in batch...")
+    # Zerodha Kite batch fetch
+    if _KITE_AVAILABLE:
+        results = _fetch_stocks_kite(tickers=tickers, interval=interval)
+        # Fill any missed tickers with yfinance
+        missed = [t for t in tickers if t not in results]
+        if missed:
+            print(f"  [Kite miss] Falling back to yfinance for {len(missed)} stocks...")
+            yf_results = _yf_fetch_batch(missed, interval)
+            results.update(yf_results)
+        return results
+
+    # Pure yfinance fallback
+    return _yf_fetch_batch(tickers, interval)
+
+
+def _yf_fetch_batch(tickers, interval):
+    """Batch-fetch multiple tickers via yfinance."""
+    results = {}
+    print(f"  Fetching {len(tickers)} stocks in batch (yfinance)...")
     batch_data = fetch_batch(tickers, interval=interval)
 
     if batch_data is None or batch_data.empty:
